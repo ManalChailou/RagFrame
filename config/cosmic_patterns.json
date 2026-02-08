@@ -1,0 +1,216 @@
+{
+  "entity_patterns": {
+    "user": [
+      "(?i)^user(s)?$", "(?i)^student(s)?$", "(?i)^professor(s)?$", "(?i)^teacher(s)?$",
+      "(?i)^admin(istrator)?(s)?$", "(?i)^customer(s)?$", "(?i)^client(s)?$", "(?i)^operator(s)?$",
+      "(?i)^person(s)?$", "(?i)^human(s)?$", "(?i)^actor(s)?$", "(?i)^manager(s)?$", "(?i)^employee(s)?$",
+      "(?i)^staff$", "(?i)^member(s)?$", "(?i)^visitor(s)?$", "(?i)^guest(s)?$", "(?i)^attendee(s)?$",
+      "(?i)^participant(s)?$", "(?i)^doctor(s)?$", "(?i)^patient(s)?$", "(?i)^driver(s)?$", "(?i)^technician(s)?$",
+      "(?i)^agent(s)?$", "(?i)^subscriber(s)?$", "(?i)^vendor(s)?$",  "(?i)^nurse(s)?$",
+      "(?i)^pharmacist(s)?$", "(?i)^CC Panel(s)?$", "(?i)QLCM(s)?$", "(?i)^course( )?catalog(ue)?$",
+      "(?i)^laboratory( technician| assistant| staff)?$",
+      "(?i)^sensor( node)?$","(?i)channel configuration panel",
+      "(?i)^device( controller)?$",
+      "(?i)^robot(s)?$",
+      "(?i)^camera(s)?$",
+      "(?i)^display(s)?$",
+      "(?i)^monitor(s)?$",
+      "(?i)^gateway(s)?$",
+      "(?i)^api( client)?$",
+      "(?i)^controller(s)?$",
+      "(?i)^drone(s)?$",
+      "(?i)^vehicle(s)?$",
+      "(?i)^satellite(s)?$",
+      "(?i)^registrar(s)?$",
+      "(?i)^lecturer(s)?$",
+      "(?i)^advisor(s)?$",
+      "(?i)^vendor( user| staff| agent)?s?$"
+    ],
+    "storage": [
+      "(?i)^database(s)?$", "(?i)^storage(s)?$", "(?i)^file(s)?$", "(?i)^repository(ies)?$", "(?i)^cache(s)?$",
+      "(?i)^disk(s)?$", "(?i)^memory$", "(?i)^persistent$", "(?i)^datastore(s)?$", "(?i)^db$", "(?i)^table(s)?$",
+      "(?i)^record(s)?$", "(?i)^archive(s)?$", "(?i)^backup(s)?$", "(?i)^log(s)?$", "(?i)^data( ?)?warehouse(s)?$",
+      "(?i)^ledger(s)?$", "(?i)^spreadsheet(s)?$", "(?i)^document(s)?$","(?i)^ram$", "(?i)^rom$", "(?i)^bucket(s)?$",
+      "(?i)^blob(s)?$"
+    ],
+    "system": [
+      "(?i)^system(s)?$", "(?i)^application(s)?$", "(?i)^software(s)?$", "(?i)^process(es)?$",
+      "(?i)^module(s)?$", "(?i)^component(s)?$", "(?i)^service(s)?$", "(?i)^platform(s)?$",
+      "(?i)^engine(s)?$", "(?i)^handler(s)?$", "(?i)^processor(s)?$", 
+      "(?i)^server(s)?$", "(?i)^API(s)?$", "(?i)^bot(s)?$", "(?i)^controller(s)?$",
+      "(?i)^microservice(s)?$"
+    ],
+    "external": [
+      "(?i)external", "(?i)gateway", "(?i)third.?party", "(?i)3rd.?party", "(?i)remote",
+      "(?i)api", "(?i)webhook", "(?i)integration", "(?i)partner", "(?i)vendor.?system",
+      "(?i)payment.?gateway", "(?i)accounting.?system", "(?i)credit.?agency", "(?i)weather.?api","(?i)^heater(s)?$",
+      "(?i)^cooking( )?lamp(s)?$",
+      "(?i)^lamp(s)?$",
+      "(?i)^temperature( )?sensor(s)?$",
+      "(?i)^temperature( )?probe(s)?$",
+      "(?i)^temperature( )?controller(s)?$",
+      "(?i)^temperature( )?device(s)?$",
+      "(?i)^motor(s)?$",
+      "(?i)^relay(s)?$",
+      "(?i)^valve(s)?$",
+      "(?i)^pump(s)?$",
+      "(?i)^fan(s)?$",
+      "(?i)^actuator(s)?$",
+      "(?i)^sensor(s)?$",
+      "(?i)^thermostat(s)?$",
+      "(?i)^thermometer(s)?$",
+      "(?i)^encoder(s)?$",
+      "(?i)^switch(es)?$", "(?i)switch device",
+      "(?i)^button(s)?$",
+      "(?i)^start( )?button$",
+      "(?i)^stop( )?button$",
+      "(?i)^plc(s)?$",
+      "(?i)^scada$",
+      "(?i)^modbus$",
+      "(?i)^can(-)?bus$",
+      "(?i)^i2c$",
+      "(?i)^spi$",
+      "(?i)^gpio$",
+      "(?i)device",
+      "(?i)fieldbus",
+      "(?i)^portal(s)?$",
+      "(?i)^catalog(ue)?( service| system)?$",
+      "(?i)^registry$",
+      "(?i)^directory$"
+    ],
+    "temporal": [
+      "(?i)^clock$", "(?i)^timer$", "(?i)^scheduler$", "(?i)^cron$", "(?i)^time$","(?i)^tick$",
+      "(?i)\\b(\\d+|one|two|three|five|ten)[- ]?(ms|millisecond(s)?|s|sec(ond)?(s)?)\\b",
+      "(?i)^5[- ]?second(s)?( signal)?$",
+      "(?i)\\bperiodic(al)?\\b",
+      "(?i)\\binterval\\b",
+      "(?i)\\bpulse\\b",
+      "(?i)rising( )?edge",
+      "(?i)falling( )?edge",
+      "(?i)^alarm$"
+    ]
+  },
+  "movement_rules": {
+    "Entry": [
+      ["(?i)input(s|ed|ing)?", "User", "System"],
+      ["(?i)scan(s|ned|ning)?", "User", "System"],
+      ["(?i)measure(s|d|ing)?", "Sensor", "System"],
+      ["(?i)capture(s|d|ing)?", "External", "System"],
+      ["(?i)detect(s|ed|ing)?", "Sensor", "System"],
+      ["(?i)send(s|ing|ed)?", "User", "System"],
+      ["(?i)submit(s|ting|ted)?", "User", "System"],
+      ["(?i)enter(s|ing|ed)?", "User", "System"],
+      ["(?i)create(s|ing|d)?", "User", "System"],
+      ["(?i)login|log in", "User", "System"],
+      ["(?i)request(s|ed|ing)?", "User", "System"],
+      ["(?i)upload(s|ed|ing)?", "User", "System"],
+      ["(?i)import(s|ed|ing)?", "User", "System"],
+      ["(?i)provide(s|d|ing)?", "User", "System"],
+      ["(?i)select(s|ed|ing)?", "User", "System"],
+      ["(?i)register(s|ed|ing)?", "User", "System"],
+      ["(?i)book(s|ed|ing)?", "User", "System"],
+      ["(?i)trigger(s|ed|ing)?", "Clock", "System"],
+      ["(?i)receive(s|d|ing)?", "External", "System"],
+      ["(?i)callback", "External", "System"],
+      ["(?i)on receipt of|upon receiving|when .* signal", "External", "System"],
+      ["(?i)detect(s|ed|ing)?", "External", "System"],
+      ["(?i)press(es|ed|ing)?|push(es|ed|ing)?", "User", "System"],
+      ["(?i)rising( )?edge|falling( )?edge|tick|pulse", "Clock", "System"]
+    ],
+    "Read": [
+      ["(?i)retrieve(s|d|ing)?", "Storage", "System"],
+      ["(?i)read(s|ing|ed)?", "Storage", "System"],
+      ["(?i)load(s|ed|ing)?", "Storage", "System"],
+      ["(?i)fetch(es|ed|ing)?", "Storage", "System"],
+      ["(?i)get(s|ting)?", "Storage", "System"],
+      ["(?i)query(s|ing|ed)?", "Storage", "System"],
+      ["(?i)access(es|ed|ing)?", "Storage", "System"],
+      ["(?i)find(s|ing|found)?", "Storage", "System"],
+      ["(?i)search(es|ed|ing)?", "Storage", "System"],
+      ["(?i)extract(s|ed|ing)?", "Storage", "System"]
+    ],
+    "Write": [
+      ["(?i)store(s|d|ing)?", "System", "Storage"],
+      ["(?i)save(s|d|ing)?", "System", "Storage"],
+      ["(?i)update(s|d|ing)?", "System", "Storage"],
+      ["(?i)insert(s|ed|ing)?", "System", "Storage"],
+      ["(?i)delete(s|d|ing)?", "System", "Storage"],
+      ["(?i)persist(s|ed|ing)?", "System", "Storage"],
+      ["(?i)modify(s|ed|ing)?", "System", "Storage"],
+      ["(?i)record(s|ed|ing)?", "System", "Storage"],
+      ["(?i)archive(s|ed|ing)?", "System", "Storage"],
+      ["(?i)log(s|ged|ging)?", "System", "Storage"]
+    ],
+    "Exit": [
+      ["(?i)output(s|ed|ing)?", "System", "User"],
+      ["(?i)activate|trigger|drive", "System", "External"],
+      ["(?i)display(s|ed|ing)?", "System", "User"],
+      ["(?i)show(s|ed|ing)?", "System", "User"],
+      ["(?i)send(s|ing|ed)?", "System", "User"],
+      ["(?i)return(s|ed|ing)?", "System", "User"],
+      ["(?i)print(s|ed|ing)?", "System", "User"],
+      ["(?i)generate(s|d|ing)?", "System", "User"],
+      ["(?i)view(s|ed|ing)?", "System", "User"],
+      ["(?i)present(s|ed|ing)?", "System", "User"],
+      ["(?i)notify(s|ed|ing)?", "System", "User"],
+      ["(?i)report(s|ed|ing)?", "System", "User"],
+      ["(?i)transmit(s|ted|ting)?", "System", "User"],
+      ["(?i)publish(es|ed|ing)?", "System", "User"],
+      ["(?i)export(s|ed|ing)?", "System", "External"],
+      ["(?i)forward(s|ed|ing)?", "System", "External"],
+      ["(?i)submit(s|ting|ted)?", "System", "External"],
+      ["(?i)turn (on|off)|switch (on|off)", "System", "External"],
+      ["(?i)activate|deactivate|enable|disable", "System", "External"],
+      ["(?i)start|stop|halt", "System", "External"],
+      ["(?i)open|close", "System", "External"],
+      ["(?i)command|control|drive", "System", "External"],
+      ["(?i)set( to)?", "System", "External"]
+    ]
+  },
+  "forbidden_patterns": {
+    "direct_storage_user": {
+      "description": "Storage cannot communicate directly with User",
+      "pattern": ["Storage", "User"],
+      "decomposition": [
+        ["Read", "Storage", "System"],
+        ["Exit", "System", "User"]
+      ]
+    },
+    "direct_user_storage": {
+      "description": "User cannot communicate directly with Storage",
+      "pattern": ["User", "Storage"],
+      "decomposition": [
+        ["Entry", "User", "System"],
+        ["Write", "System", "Storage"]
+      ]
+    },
+    "internal_system": {
+      "description": "Internal System movements should be excluded from CFP",
+      "pattern": ["System", "System"],
+      "action": "exclude"
+    },
+    "external_to_external": {
+      "description": "External entities cannot communicate directly",
+      "pattern": ["External", "External"],
+      "action": "exclude"
+    },
+    "storage_to_external": {
+      "description": "Storage cannot communicate directly with External",
+      "pattern": ["Storage", "External"],
+      "action": "exclude"
+    },
+    "external_to_storage": {
+      "description": "External devices (sensors, robots) should not write directly to Storage",
+      "pattern": ["External", "Storage"],
+      "action": "exclude"
+    }
+  },
+  "validation_rules": {
+    "mandatory_entry_per_process": true,
+    "recommended_exit_per_process": true,
+    "exclude_internal_movements": true,
+    "enforce_layered_architecture": true,
+    "allow_no_exit_for_realtime": true,
+    "allow_external_integrations": true
+  }
+}
