@@ -21,6 +21,11 @@ class RequirementInput(BaseModel):
     validation_level: str = "standard"
     rag_contexts: Optional[Dict] = None
     app_domain: Optional[str] = ""
+    # NEW: LLM selection
+    llm_provider: str = "openai"          # openai | anthropic | gemini | openai_compat
+    llm_model: str = "gpt-4"
+    llm_base_url: Optional[str] = None  # for openai_compat endpoints
+    llm_temperature: float = 0.2
 
 class PerStoryResult(BaseModel):
     user_story: str
@@ -131,7 +136,7 @@ def save_prediction_jsonl(components: Dict, movements: List[Dict], path: str = "
         logger.error(f"Failed to save prediction.jsonl: {e}")
 
 # Initialize components
-prompt_dispatcher = EnhancedPromptDispatcher()
+prompt_dispatcher = EnhancedPromptDispatcher(llm_provider="openai", llm_model="gpt-4o-mini", llm_base_url=None, temperature=0.2)
 rule_engine = EnhancedCosmicRuleEngine()
 
 # Initialize standalone RAG system for query endpoints
@@ -146,16 +151,29 @@ except Exception as e:
 async def measure_cosmic(input_data: RequirementInput):
     """Main endpoint for COSMIC measurement per FUR"""
     overwrite_flag = True
+    original_rag_system = prompt_dispatcher.rag_system
+
     try:
         logger.info(f"[measure] Processing {len(input_data.requirements)} user stories...")
 
         results: List[PerStoryResult] = []
         global_counts: Dict[str, int] = {"Entry": 0, "Exit": 0, "Read": 0, "Write": 0}
         
+        prompt_dispatcher.set_app_domain(input_data.app_domain)
+
+        prompt_dispatcher.set_llm(
+            provider=input_data.llm_provider,
+            model=input_data.llm_model,
+            base_url=input_data.llm_base_url,
+            temperature=input_data.llm_temperature
+        )
+        
+        if not input_data.enable_rag:
+            prompt_dispatcher.rag_system = None
+
         for us in input_data.requirements:
             # 1) Extraction de composants pour UNE user story
             components = prompt_dispatcher.extract_components([us])
-
             _remove_storage_data_groups(components, rule_engine.normalize_entity)
 
             # 2) SP -> mouvements bruts
@@ -170,7 +188,7 @@ async def measure_cosmic(input_data: RequirementInput):
             cfp_summary = rule_engine.get_cfp_summary(processed_movements)
             movements_detail = cfp_summary.get("movements_detail", [])
 
-            # 🔴 Ajout : sauvegarder pour chaque US (append)
+            # Ajout : sauvegarder pour chaque US (append)
             save_prediction_jsonl(components, movements_detail, overwrite=overwrite_flag)
             overwrite_flag = False
 
@@ -228,6 +246,10 @@ async def measure_cosmic(input_data: RequirementInput):
         logger.error(f"[measure] Error: {str(e)}")
         import traceback; traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
+    
+    finally:
+        # ✅ Always restore for next requests
+        prompt_dispatcher.rag_system = original_rag_system
 
 @app.get("/health")
 async def health_check():

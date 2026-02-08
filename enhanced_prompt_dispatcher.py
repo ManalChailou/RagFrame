@@ -2,10 +2,10 @@ import json
 import re
 import os
 from dotenv import load_dotenv
-from typing import Dict, List
-from openai import OpenAI
+from typing import Dict, List, Optional
 import logging
 from rag_system import CosmicRAGSystem
+from llm_router import LLMConfig, build_llm
 
 logger = logging.getLogger(__name__)
 load_dotenv() 
@@ -13,16 +13,25 @@ load_dotenv()
 class EnhancedPromptDispatcher:
     """ Version améliorée du PromptDispatcher avec intégration RAG """
     
-    def __init__(self):
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.temperature = 0.2
-        self._app_domain = "" 
-        self.last_rag_contexts = {  
+    def __init__(self, llm_provider: str = "openai", llm_model: str = "gpt-4", llm_base_url: Optional[str] = None, temperature: float = 0.2):
+        self.temperature = temperature
+        self._app_domain = ""
+
+        # NEW: LLM instance
+        self.llm_cfg = LLMConfig(
+            provider=llm_provider,
+            model=llm_model,
+            temperature=temperature,
+            base_url=llm_base_url
+        )
+        self.llm = build_llm(self.llm_cfg)
+
+        self.last_rag_contexts = {
             "functional_users": "",
             "functional_processes": "",
             "data_groups": "",
             "sub_processes": "",
-            "domain": "" 
+            "domain": ""
         }
         
         # Initialiser le système RAG
@@ -32,6 +41,18 @@ class EnhancedPromptDispatcher:
         except Exception as e:
             logger.error(f"Failed to initialize RAG system: {e}")
             self.rag_system = None
+    
+    def set_llm(self, provider: str, model: str, base_url: Optional[str] = None, temperature: Optional[float] = None):
+        """Allow changing LLM between runs (useful for evaluation loops)."""
+        if temperature is not None:
+            self.temperature = temperature
+        self.llm_cfg = LLMConfig(
+            provider=provider,
+            model=model,
+            temperature=self.temperature,
+            base_url=base_url
+        )
+        self.llm = build_llm(self.llm_cfg)
 
     def set_app_domain(self, app_domain: str):
         self._app_domain = (app_domain or "").strip()
@@ -248,7 +269,7 @@ IMPORTANT COSMIC RULES TO FOLLOW:
 2. NEVER create internal movements: System ↔ System (these are excluded from CFP)
 3. Always decompose complex operations into elementary data movements
 4. Follow the COSMIC data movement rules provided in the knowledge context above
-5. For EACH sub-process, "MovedDataGroup" MUST be 
+5. For EACH sub-process, "MovedDataGroup" MUST be exactly one of the identified Data Groups (or a valid synonym referring to exactly one ObjectOfInterest).
 
 Step-by-Step Instructions:
 1. For each functional process, identify the individual steps or sub-processes needed to fulfill the Functional User Requirement.
@@ -355,30 +376,20 @@ Data Groups: {json.dumps(data_groups, indent=2)}
             # 1. Functional Users
             logger.info("Extracting Functional Users with RAG context...")
             fu_prompt = self.create_functional_users_prompt(requirements)
-            fu_response = self.client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": fu_prompt}],
-                temperature=self.temperature
-            )
-            raw_fu = fu_response.choices[0].message.content.strip()
+            raw_fu = self.llm.generate(fu_prompt)
             fu_data = self.extract_json_from_text(raw_fu)
             results.update(fu_data)
+
             functional_users_list = self._sanitize_functional_users(fu_data.get("FunctionalUsers", []))
-            results["FunctionalUsers"] = functional_users_list  # overwrite with sanitized list
-            logger.info(f"Extracted {len(fu_data.get('FunctionalUsers', []))} functional users")
+            results["FunctionalUsers"] = functional_users_list
 
             # 2. Functional Processes
             logger.info("Extracting Functional Processes with RAG context...")
             fp_prompt = self.create_functional_process_prompt(requirements, functional_users_list)
-            fp_response = self.client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": fp_prompt}],
-                temperature=self.temperature
-            )
-            raw_fp = fp_response.choices[0].message.content.strip()
-            print("\n🧠 [RAW LLM OUTPUT - Functional Processes]\n", raw_fp, "\n")
+            raw_fp = self.llm.generate(fp_prompt)
             fp_data = self.extract_json_from_text(raw_fp)
             results["functional_processes"] = [{"name": k, **v} for k, v in fp_data.items()]
+
             # normalise le champ FunctionalUser (Timer)
             for fp in results["functional_processes"]:
                 fu = fp.get("FunctionalUser", "")
@@ -401,40 +412,32 @@ Data Groups: {json.dumps(data_groups, indent=2)}
             # 3. Data Groups
             logger.info("Extracting Data Groups with RAG context...")
             dg_prompt = self.create_data_groups_prompt(requirements, results["functional_processes"])
-            dg_response = self.client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": dg_prompt}],
-                temperature=self.temperature
-            )
-            raw_dg = dg_response.choices[0].message.content.strip()
-            print("\n🧠 [RAW LLM OUTPUT - Data Groups]\n", raw_dg, "\n")
+            raw_dg = self.llm.generate(dg_prompt)
             dg_data = self.extract_json_from_text(raw_dg)
             results["data_groups"] = [{"name": k, **v} for k, v in dg_data.items()]
-            logger.info(f"Extracted {len(dg_data)} data groups")
 
             # 4. Sub-Processes
             logger.info("Extracting Sub-processes with RAG context...")
             sp_prompt = self.create_sub_processes_prompt(requirements, results["functional_processes"], results["data_groups"])
-            sp_response = self.client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": sp_prompt}],
-                temperature=self.temperature
-            )
-            raw_sp = sp_response.choices[0].message.content.strip()
-            print("\n🧠 [RAW LLM OUTPUT - Sub Processes]\n", raw_sp, "\n")
+            raw_sp = self.llm.generate(sp_prompt)
             sp_data = self.extract_json_from_text(raw_sp)
             results["sub_processes"] = [
                 {**sp, "process_name": k} for k, steps in sp_data.items() for sp in steps
             ]
-            logger.info(f"Extracted {len(results['sub_processes'])} sub-processes")
 
-            # 5. Ajouter des métadonnées RAG
+            # 5) Metadata
+            results["llm_metadata"] = {
+                "provider": self.llm_cfg.provider,
+                "model": self.llm_cfg.model,
+                "base_url": self.llm_cfg.base_url,
+                "temperature": self.llm_cfg.temperature
+            }
+
             if self.rag_system:
                 results["rag_metadata"] = {
                     "knowledge_chunks_used": True,
                     "validation_context_available": True
                 }
-            #logger.debug(self.get_last_rag_contexts())               to show the RAG context used
             logger.info("Component extraction with RAG completed successfully")
             return results
 
