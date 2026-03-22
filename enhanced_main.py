@@ -6,6 +6,7 @@ import logging
 
 from enhanced_prompt_dispatcher import EnhancedPromptDispatcher
 from enhanced_rule_engine import EnhancedCosmicRuleEngine
+from llm_router import resolve_llm_from_name
 from rag_system import CosmicRAGSystem
 
 app = FastAPI(title="Enhanced COSMIC Framework API with RAG", version="2.0.0")
@@ -18,14 +19,9 @@ class RequirementInput(BaseModel):
     requirements: List[str]
     format: str = "user_stories"
     enable_rag: bool = True
-    validation_level: str = "standard"
-    rag_contexts: Optional[Dict] = None
-    app_domain: Optional[str] = ""
+    app_domain: Optional[str] = "business"  #business | realtime
     # NEW: LLM selection
-    llm_provider: str = "openai"          # openai | anthropic | gemini | openai_compat
-    llm_model: str = "gpt-4"
-    llm_base_url: Optional[str] = None  # for openai_compat endpoints
-    llm_temperature: float = 0.2
+    llm_name: str = "gpt" # gpt | claude | gemini | deepseek | grok | minimax
 
 class PerStoryResult(BaseModel):
     user_story: str
@@ -136,7 +132,7 @@ def save_prediction_jsonl(components: Dict, movements: List[Dict], path: str = "
         logger.error(f"Failed to save prediction.jsonl: {e}")
 
 # Initialize components
-prompt_dispatcher = EnhancedPromptDispatcher(llm_provider="openai", llm_model="gpt-4o-mini", llm_base_url=None, temperature=0.2)
+prompt_dispatcher = EnhancedPromptDispatcher(llm_provider="openai", llm_model="gpt-4o-mini", llm_base_url=None)
 rule_engine = EnhancedCosmicRuleEngine()
 
 # Initialize standalone RAG system for query endpoints
@@ -161,11 +157,13 @@ async def measure_cosmic(input_data: RequirementInput):
         
         prompt_dispatcher.set_app_domain(input_data.app_domain)
 
+        llm_cfg = resolve_llm_from_name(input_data.llm_name)
+
         prompt_dispatcher.set_llm(
-            provider=input_data.llm_provider,
-            model=input_data.llm_model,
-            base_url=input_data.llm_base_url,
-            temperature=input_data.llm_temperature
+            provider=llm_cfg.provider,
+            model=llm_cfg.model,
+            base_url=llm_cfg.base_url,
+            temperature=llm_cfg.temperature
         )
         
         if not input_data.enable_rag:

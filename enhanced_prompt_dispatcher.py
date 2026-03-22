@@ -5,26 +5,25 @@ from dotenv import load_dotenv
 from typing import Dict, List, Optional
 import logging
 from rag_system import CosmicRAGSystem
-from llm_router import LLMConfig, build_llm
+from llm_router import LLMConfig, BuildLLM
 
 logger = logging.getLogger(__name__)
 load_dotenv() 
 
 class EnhancedPromptDispatcher:
-    """ Version améliorée du PromptDispatcher avec intégration RAG """
     
-    def __init__(self, llm_provider: str = "openai", llm_model: str = "gpt-4", llm_base_url: Optional[str] = None, temperature: float = 0.2):
-        self.temperature = temperature
+    def __init__(self, llm_provider: str = "openai", llm_model: str = "gpt-4", llm_base_url: Optional[str] = None):
+        self.temperature = 0.2
         self._app_domain = ""
 
         # NEW: LLM instance
         self.llm_cfg = LLMConfig(
             provider=llm_provider,
             model=llm_model,
-            temperature=temperature,
+            temperature=self.temperature,
             base_url=llm_base_url
         )
-        self.llm = build_llm(self.llm_cfg)
+        self.llm = BuildLLM(self.llm_cfg)
 
         self.last_rag_contexts = {
             "functional_users": "",
@@ -52,7 +51,7 @@ class EnhancedPromptDispatcher:
             temperature=self.temperature,
             base_url=base_url
         )
-        self.llm = build_llm(self.llm_cfg)
+        self.llm = BuildLLM(self.llm_cfg)
 
     def set_app_domain(self, app_domain: str):
         self._app_domain = (app_domain or "").strip()
