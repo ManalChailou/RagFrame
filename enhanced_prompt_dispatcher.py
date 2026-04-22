@@ -66,6 +66,8 @@ class EnhancedPromptDispatcher:
             return "minimax"
         if "qwen" in model:
             return "qwen"
+        if "claude" in model:
+            return "claude"
         if "gemini" in model or "google" in model:
             return "gemini"
         return "generic"
@@ -110,6 +112,12 @@ class EnhancedPromptDispatcher:
             return (
                 "Reply with a single valid JSON object only. "
                 "Do not include markdown, explanations, or code fences."
+            )
+        if family == "claude":
+            return (
+                "Reply with a single valid JSON object only. "
+                "Do not include markdown, explanations, or code fences. "
+                "Do not add any text before or after the JSON object."
             )
 
         return (
