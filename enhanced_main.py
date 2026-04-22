@@ -19,7 +19,7 @@ class RequirementInput(BaseModel):
     requirements: List[str]
     format: str = "user_stories"
     enable_rag: bool = True
-    app_domain: Optional[str] = "business"  #business | realtime
+    app_domain: Optional[str] = "business"  #business | real_time
     # NEW: LLM selection
     llm_name: str = "gpt" # gpt | claude | gemini | deepseek | grok | minimax
 

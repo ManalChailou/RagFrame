@@ -1,0 +1,164 @@
+[
+  {
+    "alias": "gpt",
+    "model": "openai/gpt-4o-mini",
+    "status": "success",
+    "attempts": [
+      {
+        "status": "success",
+        "prompt": "Return exactly this JSON and nothing else: {\"ok\": true}",
+        "text": "{\"ok\": true}",
+        "json_parse_ok": true,
+        "parsed_json": {
+          "ok": true
+        },
+        "parse_error": null
+      }
+    ],
+    "winning_prompt": "Return exactly this JSON and nothing else: {\"ok\": true}",
+    "text": "{\"ok\": true}",
+    "parsed_json": {
+      "ok": true
+    }
+  },
+  {
+    "alias": "gemini",
+    "model": "google/gemini-2.5-pro/on-demand",
+    "status": "failed",
+    "attempts": [
+      {
+        "status": "failed",
+        "prompt": "Return exactly this JSON and nothing else: {\"ok\": true}",
+        "error": "Provider error: invalid_request_error - request failed",
+        "raw_response": "{\n  \"id\": null,\n  \"choices\": null,\n  \"created\": null,\n  \"model\": null,\n  \"object\": null,\n  \"service_tier\": null,\n  \"system_fingerprint\": null,\n  \"usage\": null,\n  \"code\": 500,\n  \"error\": {\n    \"code\": \"invalid_request_error\",\n    \"message\": \"request failed\",\n    \"type\": \"invalid_request_error\"\n  }\n}"
+      },
+      {
+        "status": "failed",
+        "prompt": "Reply with this exact JSON only: {\"ok\": true}",
+        "error": "Provider error: invalid_request_error - request failed",
+        "raw_response": "{\n  \"id\": null,\n  \"choices\": null,\n  \"created\": null,\n  \"model\": null,\n  \"object\": null,\n  \"service_tier\": null,\n  \"system_fingerprint\": null,\n  \"usage\": null,\n  \"code\": 500,\n  \"error\": {\n    \"code\": \"invalid_request_error\",\n    \"message\": \"request failed\",\n    \"type\": \"invalid_request_error\"\n  }\n}"
+      },
+      {
+        "status": "failed",
+        "prompt": "Output only valid JSON with one key named ok set to true.",
+        "error": "Provider error: invalid_request_error - request failed",
+        "raw_response": "{\n  \"id\": null,\n  \"choices\": null,\n  \"created\": null,\n  \"model\": null,\n  \"object\": null,\n  \"service_tier\": null,\n  \"system_fingerprint\": null,\n  \"usage\": null,\n  \"code\": 500,\n  \"error\": {\n    \"code\": \"invalid_request_error\",\n    \"message\": \"request failed\",\n    \"type\": \"invalid_request_error\"\n  }\n}"
+      },
+      {
+        "status": "failed",
+        "prompt": "Answer with a single JSON object only.",
+        "error": "Provider error: invalid_request_error - request failed",
+        "raw_response": "{\n  \"id\": null,\n  \"choices\": null,\n  \"created\": null,\n  \"model\": null,\n  \"object\": null,\n  \"service_tier\": null,\n  \"system_fingerprint\": null,\n  \"usage\": null,\n  \"code\": 500,\n  \"error\": {\n    \"code\": \"invalid_request_error\",\n    \"message\": \"request failed\",\n    \"type\": \"invalid_request_error\"\n  }\n}"
+      },
+      {
+        "status": "failed",
+        "prompt": "{\"ok\": true}",
+        "error": "Provider error: invalid_request_error - request failed",
+        "raw_response": "{\n  \"id\": null,\n  \"choices\": null,\n  \"created\": null,\n  \"model\": null,\n  \"object\": null,\n  \"service_tier\": null,\n  \"system_fingerprint\": null,\n  \"usage\": null,\n  \"code\": 500,\n  \"error\": {\n    \"code\": \"invalid_request_error\",\n    \"message\": \"request failed\",\n    \"type\": \"invalid_request_error\"\n  }\n}"
+      }
+    ]
+  },
+  {
+    "alias": "deepseek",
+    "model": "deepseek-ai/deepseek-v3.2/thinking",
+    "status": "success",
+    "attempts": [
+      {
+        "status": "success",
+        "prompt": "Return exactly this JSON and nothing else: {\"ok\": true}",
+        "text": "{\"ok\": true}",
+        "json_parse_ok": true,
+        "parsed_json": {
+          "ok": true
+        },
+        "parse_error": null
+      }
+    ],
+    "winning_prompt": "Return exactly this JSON and nothing else: {\"ok\": true}",
+    "text": "{\"ok\": true}",
+    "parsed_json": {
+      "ok": true
+    }
+  },
+  {
+    "alias": "grok",
+    "model": "xai/grok-4-fast",
+    "status": "success",
+    "attempts": [
+      {
+        "status": "failed",
+        "prompt": "Return exactly this JSON and nothing else: {\"ok\": true}",
+        "error": "Content filtered by provider. Raw response:\n{\n  \"id\": \"3dc462cf8de6e2410575e013987893c6\",\n  \"choices\": [\n    {\n      \"finish_reason\": \"content_filter\",\n      \"index\": 0,\n      \"logprobs\": null,\n      \"message\": {\n        \"content\": null,\n        \"refusal\": null,\n        \"role\": \"assistant\",\n        \"annotations\": null,\n        \"audio\": null,\n        \"function_call\": null,\n        \"tool_calls\": null,\n        \"reasoning\": null\n      },\n      \"native_finish_reason\": \"SAFETY_CHECK_TYPE_BIO\"\n    }\n  ],\n  \"created\": 1776858417,\n  \"model\": \"xai/grok-4-fast\",\n  \"object\": \"chat.completion\",\n  \"service_tier\": null,\n  \"system_fingerprint\": null,\n  \"usage\": {\n    \"completion_tokens\": 0,\n    \"prompt_tokens\": 14,\n    \"total_tokens\": 14,\n    \"completion_tokens_details\": {\n      \"accepted_prediction_tokens\": null,\n      \"audio_tokens\": 0,\n      \"reasoning_tokens\": 0,\n      \"rejected_prediction_tokens\": null,\n      \"image_tokens\": 0\n    },\n    \"prompt_tokens_details\": {\n      \"audio_tokens\": 0,\n      \"cached_tokens\": 0,\n      \"cache_write_tokens\": 0,\n      \"video_tokens\": 0\n    },\n    \"cost\": 2.8000000000000003e-06,\n    \"cost_details\": {\n      \"upstream_inference_completions_cost\": 0,\n      \"upstream_inference_cost\": 0.05,\n      \"upstream_inference_prompt_cost\": 0\n    },\n    \"discount\": 1,\n    \"is_byok\": false,\n    \"original_cost\": 2.8000000000000003e-06\n  },\n  \"provider\": \"xAI\"\n}"
+      },
+      {
+        "status": "success",
+        "prompt": "Reply with this exact JSON only: {\"ok\": true}",
+        "text": "{\"ok\": true}",
+        "json_parse_ok": true,
+        "parsed_json": {
+          "ok": true
+        },
+        "parse_error": null
+      }
+    ],
+    "winning_prompt": "Reply with this exact JSON only: {\"ok\": true}",
+    "text": "{\"ok\": true}",
+    "parsed_json": {
+      "ok": true
+    }
+  },
+  {
+    "alias": "minimax",
+    "model": "minimax/minimax-m2.5",
+    "status": "success",
+    "attempts": [
+      {
+        "status": "success",
+        "prompt": "Return exactly this JSON and nothing else: {\"ok\": true}",
+        "text": "<think>\nThe user wants exactly specified JSON output: {\"ok\": true}\n\nThis is a straightforward request that matches the format they want. I should just output exactly that JSON string.\n\n</think>\n\n{\"ok\": true}",
+        "json_parse_ok": false,
+        "parsed_json": null,
+        "parse_error": "Extra data: line 3 column 1 (char 14)"
+      },
+      {
+        "status": "success",
+        "prompt": "Reply with this exact JSON only: {\"ok\": true}",
+        "text": "<think>\nThe user wants a reply in the format: {\"ok\": true}\n\nThat is indeed a valid JSON object. They are asking for an exact JSON output with no extra text. The simplest approach is to respond with just that string.\n\nWe must also ensure no additional characters, like surrounding backticks or other syntax. The user says \"Reply with this exact JSON only\".\n\nSo we output: {\"ok\": true}\n\nWe must not add anything else.\n\n</think>\n\n{\"ok\": true}",
+        "json_parse_ok": false,
+        "parsed_json": null,
+        "parse_error": "Extra data: line 3 column 1 (char 14)"
+      },
+      {
+        "status": "success",
+        "prompt": "Output only valid JSON with one key named ok set to true.",
+        "text": "<think>\nWe need to respond with only valid JSON with a key \"ok\" set to true. So the output should be {\"ok\": true}. In JSON. Just that, nothing else. Ensure proper JSON format, nothing else. The instruction says \"Output only valid JSON with one key named ok set to true.\" So respond with {\"ok\": true}.\n\nMake sure there is no extra text, no trailing whitespace? Just JSON. Let's give that.\n\n</think>\n\n{\"ok\": true}",
+        "json_parse_ok": false,
+        "parsed_json": null,
+        "parse_error": "Extra data: line 1 column 13 (char 12)"
+      },
+      {
+        "status": "success",
+        "prompt": "Answer with a single JSON object only.",
+        "text": "<think>\nThe user says: \"Answer with a single JSON object only.\"\n\nWe need to figure out what the user wants me to answer. The user hasn't given any specific question. The request is just \"Answer with a single JSON object only.\"\n\nThis could be a generic instruction. The user maybe wants a generic JSON object response. But there's no context. There's no query about what to respond with. Possibly they want me to return a JSON object (maybe an empty one?). Or maybe they expect an empty JSON object or something. It's ambiguous.\n\nBut we need to answer something, given the request only \"Answer with a single JSON object only.\"\n\nOne might respond with {} (an empty JSON object). Or maybe they want {} or some JSON representation. There's no other content. Possibly the user wants a generic JSON object summarizing what they'd like. Or maybe it's an error: the request is too ambiguous.\n\nThe problem states \"Answer with a single JSON object only.\" So I should produce a JSON object and nothing else. It's ambiguous but we must comply. So probably return {}.\n\nThus answer would be {}.\n\nBut perhaps they'd like something else like a placeholder. However the instruction is \"Answer with a single JSON object only.\"\n\nThus I'd comply with {}.\n\nMake sure not to include any extra text.\n\nThus final answer: {}.\n\n</think>\n\n{}",
+        "json_parse_ok": false,
+        "parsed_json": null,
+        "parse_error": "Extra data: line 1 column 4 (char 3)"
+      },
+      {
+        "status": "success",
+        "prompt": "{\"ok\": true}",
+        "text": "<think>\nThe user message is a JSON object with \"ok\": true. This seems like some kind of test or maybe the user is confirming something. The user says: {\"ok\": true}. Could be they want an acknowledgment or maybe they are testing if the system works.\n\nGiven we have no prior conversation, we could respond with a friendly acknowledgment. Perhaps say \"Great! How can I help you?\" Or \"Thanks for letting me know, what would you like to do?\" The user gave a JSON that signals OK. Could be they want a JSON response. Usually they might want us to echo something, but likely it's a test.\n\nThus we respond accordingly.\n\nWe could respond in plain text, or maybe also produce a JSON. The safest is to respond politely: \"Understood. What would you like to do?\" So answer: \"Got it! Let me know how I can help.\"\n\nGiven guidelines, we must be helpful. So respond succinctly.\n\n</think>\n\nGot it! I'm ready to help—what would you like to work on?",
+        "json_parse_ok": true,
+        "parsed_json": {
+          "ok": true
+        },
+        "parse_error": null
+      }
+    ],
+    "winning_prompt": "{\"ok\": true}",
+    "text": "<think>\nThe user message is a JSON object with \"ok\": true. This seems like some kind of test or maybe the user is confirming something. The user says: {\"ok\": true}. Could be they want an acknowledgment or maybe they are testing if the system works.\n\nGiven we have no prior conversation, we could respond with a friendly acknowledgment. Perhaps say \"Great! How can I help you?\" Or \"Thanks for letting me know, what would you like to do?\" The user gave a JSON that signals OK. Could be they want a JSON response. Usually they might want us to echo something, but likely it's a test.\n\nThus we respond accordingly.\n\nWe could respond in plain text, or maybe also produce a JSON. The safest is to respond politely: \"Understood. What would you like to do?\" So answer: \"Got it! Let me know how I can help.\"\n\nGiven guidelines, we must be helpful. So respond succinctly.\n\n</think>\n\nGot it! I'm ready to help—what would you like to work on?",
+    "parsed_json": {
+      "ok": true
+    }
+  }
+]

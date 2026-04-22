@@ -24,25 +24,10 @@ class EnhancedPromptDispatcher:
             base_url=llm_base_url
         )
         self.llm = BuildLLM(self.llm_cfg)
-
-        self.last_rag_contexts = {
-            "functional_users": "",
-            "functional_processes": "",
-            "data_groups": "",
-            "sub_processes": "",
-            "domain": ""
-        }
         
-        # Initialiser le système RAG
-        try:
-            self.rag_system = CosmicRAGSystem()
-            logger.info("RAG system initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize RAG system: {e}")
-            self.rag_system = None
     
     def set_llm(self, provider: str, model: str, base_url: Optional[str] = None, temperature: Optional[float] = None):
-        """Allow changing LLM between runs (useful for evaluation loops)."""
+        """Allow changing LLM between runs"""
         if temperature is not None:
             self.temperature = temperature
         self.llm_cfg = LLMConfig(
@@ -52,126 +37,6 @@ class EnhancedPromptDispatcher:
             base_url=base_url
         )
         self.llm = BuildLLM(self.llm_cfg)
-
-    def _llm_family(self) -> str:
-        model = (self.llm_cfg.model or "").lower()
-
-        if "gpt" in model or "openai" in model:
-            return "openai"
-        if "deepseek" in model:
-            return "deepseek"
-        if "grok" in model or "xai" in model:
-            return "grok"
-        if "minimax" in model:
-            return "minimax"
-        if "qwen" in model:
-            return "qwen"
-        if "gemini" in model or "google" in model:
-            return "gemini"
-        return "generic"
-
-
-    def _response_instruction(self) -> str:
-        family = self._llm_family()
-
-        if family == "openai":
-            return (
-                "Output MUST be a single JSON object only. "
-                "No prose, no markdown, no code fences."
-            )
-
-        if family == "deepseek":
-            return (
-                "Reply with a single valid JSON object only. "
-                "Do not add explanations, comments, markdown, or code fences. "
-                "Do not include any text before or after the JSON object."
-            )
-
-        if family == "grok":
-            return (
-                "Reply with a single valid JSON object only. "
-                "Do not include markdown, explanations, or code fences."
-            )
-
-        if family == "minimax":
-            return (
-                "Reply with a single valid JSON object only. "
-                "Do not include markdown, explanations, reasoning, or code fences. "
-                "Do not add any text before or after the JSON object."
-            )
-        if family == "qwen":
-            return (
-                "Reply with a single valid JSON object only. "
-                "Do not include markdown, explanations, reasoning, or code fences. "
-                "Do not add any text before or after the JSON object."
-            )
-
-        if family == "gemini":
-            return (
-                "Reply with a single valid JSON object only. "
-                "Do not include markdown, explanations, or code fences."
-            )
-
-        return (
-            "Reply with a single valid JSON object only. "
-            "Do not include markdown, explanations, or code fences."
-        )
-
-
-    def _clean_model_output(self, text: str) -> str:
-        if not text:
-            return text
-
-        # Remove reasoning blocks
-        text = re.sub(r"<think>.*?</think>\s*", "", text, flags=re.DOTALL | re.IGNORECASE)
-        text = re.sub(r"<thinking>.*?</thinking>\s*", "", text, flags=re.DOTALL | re.IGNORECASE)
-
-        # Remove markdown fences if the model wraps JSON in them
-        text = re.sub(r"^```json\s*", "", text.strip(), flags=re.IGNORECASE)
-        text = re.sub(r"^```\s*", "", text.strip())
-        text = re.sub(r"\s*```$", "", text.strip())
-
-        return text.strip()
-
-    def set_app_domain(self, app_domain: str):
-        self._app_domain = (app_domain or "").strip()
-        self.last_rag_contexts["domain"] = self._app_domain
-
-    def get_last_rag_contexts(self):  
-        return dict(self.last_rag_contexts)
-    
-    # --- simple sanitizer for FU list ---
-    def _sanitize_functional_users(self, fu_list: list) -> list:
-        if not fu_list: 
-            return []
-        cleaned = []
-        for fu in fu_list:
-            f = (fu or "").strip()
-            if not f: 
-                continue
-            low = f.lower()
-
-            # map temporal mentions to Timer
-            if self._is_timing_mention(low) or "signal" in low:
-                mapped = "Timer"
-                if mapped not in cleaned:
-                    cleaned.append(mapped)
-                continue
-
-            # drop storages/systems/devices that are not functional users
-            drop_tokens = ["ram", "rom", "memory", "storage", "system", "database"]
-            if any(t in low for t in drop_tokens):
-                continue
-
-            # keep external actors/devices if really needed (not in this FUR)
-            cleaned.append(f)
-
-        # ensure Timer is kept if any temporal trigger is present
-        if "Timer" in cleaned:
-            cleaned = ["Timer"]  # in this FUR we want only Timer
-        # final dedup
-        cleaned = list(dict.fromkeys(cleaned))
-        return cleaned
 
         
     def create_functional_users_prompt(self, requirements: List[str]) -> str:
@@ -206,8 +71,7 @@ Identified functional users:
   "FunctionalUsers": ["Student"]
 }}
 
-{self._response_instruction()}
-If you add anything else, the answer will be rejected.
+Output MUST be a single JSON object only. No prose, no markdown, no code fences. If you add anything else, the answer will be rejected
 
 Requirements:
 {json.dumps(requirements, indent=2)}
@@ -264,8 +128,7 @@ Identified functional process:
   }}
 }}
 
-{self._response_instruction()}
-If you add anything else, the answer will be rejected.
+Output MUST be a single JSON object only. No prose, no markdown, no code fences. If you add anything else, the answer will be rejected
 
 Requirements:
 {json.dumps(requirements, indent=2)}
@@ -322,8 +185,7 @@ Identified data groups:
   }}
 }}
 
-{self._response_instruction()}
-If you add anything else, the answer will be rejected.
+Output MUST be a single JSON object only. No prose, no markdown, no code fences. If you add anything else, the answer will be rejected
 
 Requirements: {json.dumps(requirements, indent=2)}
 Functional Processes: {json.dumps(functional_processes, indent=2)}
@@ -337,7 +199,7 @@ Role: You are a software measurement expert specializing in the COSMIC method fo
 Task Description: Your task involves breaking down each functional process into sub-processes and identifying data movement components.
 """
         
-        # Ajouter le contexte RAG spécialisé pour les mouvements de données
+        # Ajouter le contexte RAG
         rag_context = ""
         if self.rag_system:
             rag_context = self.rag_system.get_context_for_sub_processes(requirements,functional_processes,data_groups, app_domain=self._app_domain)
@@ -442,8 +304,7 @@ CORRECT Decomposition:
   ]
 }}
 
-{self._response_instruction()}
-If you add anything else, the answer will be rejected.
+Output MUST be a single JSON object only. No prose, no markdown, no code fences. If you add anything else, the answer will be rejected
 
 Requirements: {json.dumps(requirements, indent=2)}
 Functional Processes: {json.dumps(functional_processes, indent=2)}
@@ -459,7 +320,7 @@ Data Groups: {json.dumps(data_groups, indent=2)}
             # 1. Functional Users
             logger.info("Extracting Functional Users with RAG context...")
             fu_prompt = self.create_functional_users_prompt(requirements)
-            raw_fu = self._clean_model_output(self.llm.generate(fu_prompt))
+            raw_fu = self.llm.generate(fu_prompt)
             fu_data = self.extract_json_from_text(raw_fu)
             results.update(fu_data)
 
@@ -469,40 +330,23 @@ Data Groups: {json.dumps(data_groups, indent=2)}
             # 2. Functional Processes
             logger.info("Extracting Functional Processes with RAG context...")
             fp_prompt = self.create_functional_process_prompt(requirements, functional_users_list)
-            raw_fp = self._clean_model_output(self.llm.generate(fp_prompt))
+            raw_fp = self.llm.generate(fp_prompt)
             fp_data = self.extract_json_from_text(raw_fp)
             results["functional_processes"] = [{"name": k, **v} for k, v in fp_data.items()]
-
-            # normalise le champ FunctionalUser (Timer)
-            for fp in results["functional_processes"]:
-                fu = fp.get("FunctionalUser", "")
-                te = fp.get("TriggeringEvents", "") or fp.get("TriggeringEntry", "")
-                if self._is_timing_mention(fu) or self._is_timing_mention(te):
-                    fp["FunctionalUser"] = "Timer"
-            # --- collapse to one FP if the requirement looks periodic ---
-            req_text = " ".join(requirements).lower()
-            is_periodic = any(w in req_text for w in ["every", "each", "interval", "second signal", "30-second"])
-            if is_periodic and len(results["functional_processes"]) > 1:
-                main = results["functional_processes"][0]
-                main_name = main.get("name") or "Update-Target-Temperature"
-                main["name"] = main_name
-                main["FunctionalUser"] = "Timer"
-                # keep only the first FP
-                results["functional_processes"] = [main]
             
             logger.info(f"Extracted {len(fp_data)} functional processes")
 
             # 3. Data Groups
             logger.info("Extracting Data Groups with RAG context...")
             dg_prompt = self.create_data_groups_prompt(requirements, results["functional_processes"])
-            raw_dg = self._clean_model_output(self.llm.generate(dg_prompt))
+            raw_dg = self.llm.generate(dg_prompt)
             dg_data = self.extract_json_from_text(raw_dg)
             results["data_groups"] = [{"name": k, **v} for k, v in dg_data.items()]
 
             # 4. Sub-Processes
             logger.info("Extracting Sub-processes with RAG context...")
             sp_prompt = self.create_sub_processes_prompt(requirements, results["functional_processes"], results["data_groups"])
-            raw_sp = self._clean_model_output(self.llm.generate(sp_prompt))
+            raw_sp = self.llm.generate(sp_prompt)
             sp_data = self.extract_json_from_text(raw_sp)
             results["sub_processes"] = [
                 {**sp, "process_name": k} for k, steps in sp_data.items() for sp in steps
@@ -516,11 +360,6 @@ Data Groups: {json.dumps(data_groups, indent=2)}
                 "temperature": self.llm_cfg.temperature
             }
 
-            if self.rag_system:
-                results["rag_metadata"] = {
-                    "knowledge_chunks_used": True,
-                    "validation_context_available": True
-                }
             logger.info("Component extraction with RAG completed successfully")
             return results
 
@@ -530,21 +369,6 @@ Data Groups: {json.dumps(data_groups, indent=2)}
         except Exception as e:
             logger.error(f"Error in component extraction: {e}")
             raise
-
-    def _is_timing_mention(self, text: str) -> bool:
-        if not text:
-            return False
-        t = text.lower()
-        # Heuristiques simples + formes courantes
-        return (
-            any(k in t for k in ["timer", "clock", "tick", "time event", "time-event", "time_event", "second", "sec"])
-            or bool(re.search(r"\b\d+\s*-\s*second(s)?\b", t))   # ex: "30-second"
-            or bool(re.search(r"\b\d+\s*(sec|s)\b", t))          # ex: "5s", "30s", "5 sec"
-            or bool(re.search(r"\b\d+\s*[-]?\s*(minute|min|m)\b", t))     
-            or bool(re.search(r"\b\d+\s*[-]?\s*(hour|hr|h)\b", t))        
-            or bool(re.search(r"\b\d+\s*[-]?\s*(day|d)\b", t))            
-        )
-
     
     def extract_json_from_text(self, text: str) -> dict:
         """
@@ -555,7 +379,6 @@ Data Groups: {json.dumps(data_groups, indent=2)}
         - raises if nothing JSON-like is found
         """
         import json, re
-        text = re.sub(r"<think>.*?</think>\s*", "", text or "", flags=re.DOTALL | re.IGNORECASE)
 
         def _try_load(s):
             s = s.strip()
@@ -642,23 +465,3 @@ Data Groups: {json.dumps(data_groups, indent=2)}
                 logger.warning(f"Missing expected key: {key}")
                 return False
         return True
-
-    def get_validation_suggestions(self, movements: List[Dict]) -> List[str]:
-        """Utilise le RAG pour obtenir des suggestions de validation"""
-        if not self.rag_system:
-            return []
-        
-        validation_context = self.rag_system.get_validation_context()
-        suggestions = []
-        
-        # Analyser les mouvements pour identifier des problèmes potentiels
-        entry_count = sum(1 for m in movements if m.get('type') == 'Entry')
-        exit_count = sum(1 for m in movements if m.get('type') == 'Exit')
-        
-        if entry_count == 0:
-            suggestions.append("No Entry movements found - every functional process should have at least one Entry")
-        
-        if exit_count == 0:
-            suggestions.append("No Exit movements found - consider if users need feedback from the system")
-        
-        return suggestions
