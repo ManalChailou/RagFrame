@@ -6,7 +6,8 @@ from tabulate import tabulate
 
 # === Configuration ===
 REF_PATH  = "config/True_reference_business.jsonl"
-PRED_PATH = "config/Llms business prediction/prediction_claude_business_rag.jsonl"
+#PRED_PATH = "config\prediction.jsonl"
+PRED_PATH = "config/Llms business prediction/prediction_grok_business_rag.jsonl"
 THRESHOLD = 0.8  # cosine similarity threshold
 
 # === Utility functions ===
@@ -85,7 +86,7 @@ def main():
         ten_eval = semantic_eval([r.get("TEn","")], [p.get("TEn","")], model)
         fu_eval = semantic_eval([r.get("FU","")], [p.get("FU","")], model)
         dg_eval = semantic_eval(r.get("DG",[]), p.get("DG",[]), model)
-        sp_eval = semantic_eval(r.get("SP",[]), p.get("SP",[]), model)
+        sp_eval = semantic_eval(r.get("SP",[]), p.get("SP",[]), model, threshold=0.65)
 
         # --- Categorical (Action / Source / Destination) ---
         act_eval = categorical_eval(r.get("Action",[]), p.get("Action",[]))

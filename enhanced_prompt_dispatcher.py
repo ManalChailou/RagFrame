@@ -459,6 +459,155 @@ Data Groups: {json.dumps(data_groups, indent=2)}
 """
         return base_prompt
 
+    # ------------------------------------------------------------------
+    # LLM-based StepName rewriting
+    # ------------------------------------------------------------------
+    def create_step_name_rewrite_prompt(
+        self,
+        requirements: List[str],
+        sub_processes: List[Dict],
+        functional_processes: Optional[List[Dict]] = None,
+        data_groups: Optional[List[Dict]] = None,
+    ) -> str:
+        """Build a constrained prompt that rewrites ONLY StepName values."""
+        protected_steps = []
+        for i, sp in enumerate(sub_processes or []):
+            protected_steps.append({
+                "index": i,
+                "StepName": sp.get("StepName") or sp.get("step_name") or "",
+                "ActionVerb": sp.get("ActionVerb") or sp.get("action_verb") or "",
+                "MovedDataGroup": sp.get("MovedDataGroup") or sp.get("moved_data_group") or sp.get("DataGroup") or sp.get("data_group") or "",
+                "ObjectOfInterest": sp.get("ObjectOfInterest") or sp.get("object_of_interest") or "",
+                "Source": sp.get("Source") or sp.get("source") or "",
+                "Destination": sp.get("Destination") or sp.get("destination") or "",
+                "process_name": sp.get("process_name") or "",
+            })
+
+        return f"""
+Role: You are a COSMIC measurement assistant.
+
+Task:
+Rewrite ONLY the StepName of each COSMIC sub-process into a short but meaningful label.
+
+STRICT RULES:
+- Do NOT add, remove, merge, split, or reorder sub-processes.
+- Do NOT change ActionVerb, MovedDataGroup, ObjectOfInterest, Source, Destination, or process_name.
+- Rewrite StepName only.
+- Keep the same COSMIC movement meaning.
+- Use 2 to 6 words when possible.
+- Prefer: Verb + Business Object or Verb + Business Qualifier.
+- Preserve meaningful qualifiers from the requirement or original step, such as: status, commitments, duplicates, conflicts, qualifications, department, selections, eligibility, confirmation, error message, identifier, details.
+- Avoid labels that are too generic when useful business meaning exists.
+- Avoid long narrative sentences.
+- Use clear action verbs such as: Enter, Select, Request, Receive, Read, Check, Create, Update, Delete, Send, Display, Confirm.
+
+Examples:
+- "Validate and check if Professor exists in the database before creating the record" -> "Check Professor Duplicates"
+- "Check whether professor has any course offering commitments" -> "Check Professor Commitments"
+- "Show the result of the operation to the Registrar" -> "Display Confirmation"
+- "Send the professor qualifications to Course Catalog" -> "Send Professor Qualifications"
+- "The Course Catalog returns relevant Course Offerings" -> "Receive Course Offerings"
+- "C-Reg displays the Professor's Department" -> "Display Professor Department"
+
+Return a single valid JSON object only, with exactly this shape:
+{{
+  "steps": [
+    {{"index": 0, "StepName": "..."}},
+    {{"index": 1, "StepName": "..."}}
+  ]
+}}
+
+The output list must contain exactly {len(protected_steps)} items and preserve the same indexes.
+
+Requirements:
+{json.dumps(requirements, ensure_ascii=False, indent=2)}
+
+Functional Processes:
+{json.dumps(functional_processes or [], ensure_ascii=False, indent=2)}
+
+Data Groups:
+{json.dumps(data_groups or [], ensure_ascii=False, indent=2)}
+
+Sub-processes to rewrite:
+{json.dumps(protected_steps, ensure_ascii=False, indent=2)}
+
+{self._response_instruction()}
+"""
+
+    def rewrite_sub_process_step_names(
+        self,
+        requirements: List[str],
+        sub_processes: List[Dict],
+        functional_processes: Optional[List[Dict]] = None,
+        data_groups: Optional[List[Dict]] = None,
+    ) -> List[Dict]:
+        """
+        Uses a second constrained LLM call to rewrite ONLY StepName values.
+        All COSMIC structural fields are preserved from the original extraction.
+        If the LLM output is invalid, the original sub-processes are returned unchanged.
+        """
+        if not sub_processes:
+            return []
+
+        try:
+            prompt = self.create_step_name_rewrite_prompt(
+                requirements=requirements,
+                sub_processes=sub_processes,
+                functional_processes=functional_processes,
+                data_groups=data_groups,
+            )
+            raw = self._clean_model_output(self.llm.generate(prompt))
+            data = self.extract_json_from_text(raw)
+            rewritten_steps = data.get("steps", [])
+
+            if not isinstance(rewritten_steps, list):
+                logger.warning("StepName rewrite skipped: 'steps' is not a list")
+                return sub_processes
+
+            rewrite_map = {}
+            for item in rewritten_steps:
+                if not isinstance(item, dict):
+                    continue
+                idx = item.get("index")
+                name = item.get("StepName")
+                if isinstance(idx, int) and isinstance(name, str) and name.strip():
+                    rewrite_map[idx] = name.strip()
+
+            if len(rewrite_map) != len(sub_processes):
+                logger.warning(
+                    "StepName rewrite partially invalid: expected %s labels, got %s. Applying valid labels only.",
+                    len(sub_processes), len(rewrite_map)
+                )
+
+            protected_fields = {
+                "ActionVerb", "action_verb",
+                "MovedDataGroup", "moved_data_group",
+                "DataGroup", "data_group",
+                "ObjectOfInterest", "object_of_interest",
+                "Source", "source",
+                "Destination", "destination",
+                "process_name",
+            }
+
+            updated = []
+            for i, original_sp in enumerate(sub_processes):
+                new_sp = dict(original_sp)
+                if i in rewrite_map:
+                    new_sp["StepName"] = rewrite_map[i]
+
+                # Safety: ensure no structural field can be modified by the rewrite call.
+                for field in protected_fields:
+                    if field in original_sp:
+                        new_sp[field] = original_sp[field]
+
+                updated.append(new_sp)
+
+            return updated
+
+        except Exception as e:
+            logger.warning(f"StepName rewrite failed; keeping original StepName values: {e}")
+            return sub_processes
+
     def extract_components(self, requirements: List[str]) -> Dict:
         """Extract all COSMIC components using sequential prompts with RAG enhancement"""
         results = {}

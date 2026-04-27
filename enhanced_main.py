@@ -174,8 +174,17 @@ async def measure_cosmic(input_data: RequirementInput):
             components = prompt_dispatcher.extract_components([us])
             _remove_storage_data_groups(components, rule_engine.normalize_entity)
 
-            # 2) SP -> mouvements bruts
+            # 2) Rewrite StepName labels using a constrained LLM call, then convert SP -> raw movements
+            # The rewrite call changes ONLY StepName. It preserves ActionVerb, DataGroup,
+            # Source, Destination and process_name, so CFP counting remains rule-based.
             sub_processes = components.get("sub_processes", [])
+            sub_processes = prompt_dispatcher.rewrite_sub_process_step_names(
+                requirements=[us],
+                sub_processes=sub_processes,
+                functional_processes=components.get("functional_processes", []),
+                data_groups=components.get("data_groups", []),
+            )
+            components["sub_processes"] = sub_processes
             raw_movements = rule_engine.convert_sub_processes_to_movements(sub_processes)
 
             # 3) Application des règles COSMIC (RU1..RU4, normalisations, etc.)
