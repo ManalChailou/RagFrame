@@ -5,9 +5,9 @@ from sklearn.metrics.pairwise import cosine_similarity
 from tabulate import tabulate
 
 # === Configuration ===
-REF_PATH  = "config/True_reference_realtime_ALS.jsonl"
+REF_PATH  = "config/True_reference_business.jsonl"
 #PRED_PATH = "config\prediction.jsonl"
-PRED_PATH = "config\Llms realtime prediction\prediction_qwen_realtime.jsonl"
+PRED_PATH = "config\prediction.jsonl"
 THRESHOLD = 0.8  # cosine similarity threshold
 
 # === Utility functions ===
