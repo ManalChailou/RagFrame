@@ -1,4 +1,4 @@
-from graphRag_system import CosmicGraphRAGSystem
+from graphRag.graphRag_system import CosmicGraphRAGSystem
 
 rag = CosmicGraphRAGSystem()
 

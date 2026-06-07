@@ -1,8 +1,17 @@
-import json, os
+import json
+import os
+import logging
+from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Optional
-import logging
 
 from enhanced_prompt_dispatcher_graph import EnhancedPromptDispatcher
 from enhanced_rule_engine_graph import EnhancedCosmicRuleEngine
@@ -19,7 +28,8 @@ class RequirementInput(BaseModel):
     requirements: List[str]
     format: str = "user_stories"
     retrieval_mode: str = "graphrag"  # none | rag | graphrag
-    app_domain: Optional[str] = "business"  #business | real_time
+    app_domain: Optional[str] = "business"  # business | real_time
+    validation_level: Optional[str] = "none"  # none | standard | comprehensive
     # NEW: LLM selection
     llm_name: str = "gpt" # gpt | claude | gemini | deepseek | grok | minimax
 
@@ -166,7 +176,14 @@ async def measure_cosmic(input_data: RequirementInput):
             temperature=llm_cfg.temperature
         )
         
-        if not input_data.retrieval_mode:
+        retrieval_mode = (input_data.retrieval_mode or "none").strip().lower()
+        if retrieval_mode == "none":
+            prompt_dispatcher.rag_system = None
+        elif retrieval_mode == "graphrag":
+            if prompt_dispatcher.rag_system is None:
+                prompt_dispatcher.rag_system = CosmicGraphRAGSystem()
+        else:
+            logger.warning(f"Unsupported retrieval_mode={input_data.retrieval_mode}; disabling retrieval.")
             prompt_dispatcher.rag_system = None
 
         for us in input_data.requirements:
@@ -219,7 +236,7 @@ async def measure_cosmic(input_data: RequirementInput):
                     "total_cfp": cfp_summary.get("total_cfp", 0),
                     "quality_metrics": cfp_summary.get("quality_metrics", {}),
                 },
-                rag_insights=rag_insights if getattr(input_data, "retrieval_mode", False) else None,
+                rag_insights=rag_insights if (input_data.retrieval_mode or "").lower() == "graphrag" else None,
                 validation_report=validation_report,
             )
             results.append(per_story)
@@ -265,15 +282,23 @@ async def health_check():
     prompt_rag_status = "available" if prompt_dispatcher.rag_system else "unavailable"
     rule_rag_status = "available" if rule_engine.rag_system else "unavailable"
     
+    graph_stats = {}
+    if standalone_rag:
+        try:
+            graph_stats = standalone_rag.get_graph_stats()
+        except Exception as e:
+            graph_stats = {"error": str(e)}
+
     return {
-        "status": "healthy", 
+        "status": "healthy",
         "version": "2.0.0",
+        "retrieval": "graphrag",
         "rag_systems": {
             "standalone_rag": rag_status,
             "prompt_dispatcher_rag": prompt_rag_status,
             "rule_engine_rag": rule_rag_status
         },
-        "knowledge_base_loaded": len(standalone_rag.knowledge_chunks) if standalone_rag else 0
+        "graph_stats": graph_stats
     }
 
 if __name__ == "__main__":
