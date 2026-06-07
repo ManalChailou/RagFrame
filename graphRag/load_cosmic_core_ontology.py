@@ -17,18 +17,6 @@ if not NEO4J_PASSWORD:
 
 
 class CosmicCoreOntologyLoader:
-    """
-    Strict replacement loader.
-
-    This script deletes all existing graph data and rebuilds the COSMIC core ontology
-    using only the selected information supplied in the user's notes:
-    - Functional Users
-    - Functional Processes
-    - Data Groups / Objects of Interest / Data Attributes
-    - Sub-processes
-    - Data Movements
-    - Error / Confirmation messages
-    """
 
     def __init__(self):
         self.driver = GraphDatabase.driver(
@@ -43,19 +31,13 @@ class CosmicCoreOntologyLoader:
         with self.driver.session() as session:
             session.run(query, params or {})
 
-    # ------------------------------------------------------------------
     # RESET DATABASE
-    # ------------------------------------------------------------------
-
     def reset_database(self):
         logger.warning("Deleting all existing graph data...")
         self.run("MATCH (n) DETACH DELETE n")
         logger.info("Database cleared successfully.")
 
-    # ------------------------------------------------------------------
     # CONSTRAINTS
-    # ------------------------------------------------------------------
-
     def create_constraints(self):
         logger.info("Creating constraints...")
 
@@ -100,10 +82,7 @@ class CosmicCoreOntologyLoader:
         for query in constraints:
             self.run(query)
 
-    # ------------------------------------------------------------------
     # COMPONENT TYPES
-    # ------------------------------------------------------------------
-
     def load_component_types(self):
         logger.info("Loading component types...")
 
@@ -215,10 +194,7 @@ class CosmicCoreOntologyLoader:
                 item
             )
 
-    # ------------------------------------------------------------------
     # CONCEPTS
-    # ------------------------------------------------------------------
-
     def load_concepts(self):
         logger.info("Loading concepts...")
 
@@ -270,10 +246,7 @@ class CosmicCoreOntologyLoader:
                 item
             )
 
-    # ------------------------------------------------------------------
     # ENTITY TYPES
-    # ------------------------------------------------------------------
-
     def load_entity_types(self):
         logger.info("Loading entity types...")
 
@@ -321,10 +294,7 @@ class CosmicCoreOntologyLoader:
                 item
             )
 
-    # ------------------------------------------------------------------
     # MOVEMENT TYPES
-    # ------------------------------------------------------------------
-
     def load_movement_types(self):
         logger.info("Loading movement types...")
 
@@ -381,10 +351,7 @@ class CosmicCoreOntologyLoader:
                 item
             )
 
-    # ------------------------------------------------------------------
     # RULES
-    # ------------------------------------------------------------------
-
     def load_rules(self):
         logger.info("Loading rules...")
 
@@ -550,10 +517,7 @@ class CosmicCoreOntologyLoader:
                     }
                 )
 
-    # ------------------------------------------------------------------
     # GUIDELINES
-    # ------------------------------------------------------------------
-
     def load_guidelines(self):
         logger.info("Loading guidelines...")
 
@@ -678,10 +642,7 @@ class CosmicCoreOntologyLoader:
                     }
                 )
 
-    # ------------------------------------------------------------------
     # VALIDATION RULES
-    # ------------------------------------------------------------------
-
     def load_validation_rules(self):
         logger.info("Loading validation rules...")
 
@@ -751,10 +712,7 @@ class CosmicCoreOntologyLoader:
                     }
                 )
 
-    # ------------------------------------------------------------------
     # SEMANTIC RELATIONS
-    # ------------------------------------------------------------------
-
     def load_semantic_relations(self):
         logger.info("Loading semantic relations...")
 
@@ -857,10 +815,7 @@ class CosmicCoreOntologyLoader:
         for query in queries:
             self.run(query)
 
-    # ------------------------------------------------------------------
     # VERIFICATION
-    # ------------------------------------------------------------------
-
     def verify_graph(self):
         logger.info("Verifying graph content...")
 
@@ -885,10 +840,7 @@ class CosmicCoreOntologyLoader:
             for record in session.run(rel_query):
                 print(f"{record['relationship']}: {record['count']}")
 
-    # ------------------------------------------------------------------
     # LOAD ALL
-    # ------------------------------------------------------------------
-
     def load_all(self):
         self.reset_database()
         self.create_constraints()
