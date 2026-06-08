@@ -156,16 +156,37 @@ class EnhancedCosmicRuleEngine:
         return merged_processes
     
     def apply_rule_2(self, data_movements: List[Tuple]) -> List[Tuple]:
-        """RU2: Éliminer les mouvements de données dupliqués"""
-        logger.info("Applying RU2: Duplicate movement removal")
-        
-        initial_count = len(data_movements)
-        unique_movements = list(set(data_movements))
-        duplicates_removed = initial_count - len(unique_movements)
-        
-        logger.info(f"RU2 completed: {duplicates_removed} duplicates removed, {len(unique_movements)} unique movements")
+        """Remove only true repeated occurrences while preserving FUR distinctions."""
+        logger.info("Applying RU2: safe duplicate movement removal")
+
+        unique_movements = []
+        seen = set()
+
+        for movement in data_movements:
+            action, data_group, ooi, source, destination, process = movement
+            key = (
+                str(process or "").strip().casefold(),
+                str(action or "").strip().casefold(),
+                str(data_group or "").strip().casefold(),
+                str(ooi or "").strip().casefold(),
+                self.normalize_entity(str(source or "")),
+                self.normalize_entity(str(destination or "")),
+            )
+
+            if key in seen:
+                continue
+
+            seen.add(key)
+            unique_movements.append(movement)
+
+        duplicates_removed = len(data_movements) - len(unique_movements)
+        logger.info(
+            "RU2 completed: %s true duplicates removed, %s unique movements",
+            duplicates_removed,
+            len(unique_movements),
+        )
         return unique_movements
-    
+
     def apply_rule_3(self, movement_data: Tuple[str, str, str, str]) -> DataMovementType:
         """RU3: Classifier le type de mouvement de données avec support RAG"""
         action, data_group, source, dest = movement_data
@@ -344,6 +365,17 @@ class EnhancedCosmicRuleEngine:
             
             if entry_count == 0:
                 errors.append(f"Process '{process_name}': No Entry movement found")
+
+            if not any(
+                movement.movement_type in {
+                    DataMovementType.EXIT,
+                    DataMovementType.WRITE,
+                }
+                for movement in process_movements
+            ):
+                errors.append(
+                    f"Process '{process_name}': No Exit or Write movement found"
+                )
         
         # Statistiques globales
         entry_count = sum(1 for m in movements if m.movement_type == DataMovementType.ENTRY)
@@ -493,7 +525,7 @@ class EnhancedCosmicRuleEngine:
                     continue
                 
                 # Logging pour debug
-                logger.debug(f"Processing movement: {m['action']} {m['data_group']} {m['source']}→{m['destination']} in {m.get('process_name', 'Unknown')}")
+                logger.debug(f"Processing movement: {m['action']} {m['data_group']} {m['source']}→{m['destination']} in {m.get('functional_process', 'Unknown')}")
                 
                 # Normaliser pour vérification
                 norm_source = self.normalize_entity(m["source"])
@@ -501,13 +533,13 @@ class EnhancedCosmicRuleEngine:
                 
                 # FILTRAGE STRICT des mouvements interdits
                 if norm_source == "System" and norm_dest == "System":
-                    logger.warning(f"🚫 EXCLUDED System→System: {m['action']} {m['data_group']} in {m.get('process_name', 'Unknown')}")
+                    logger.warning(f"🚫 EXCLUDED System→System: {m['action']} {m['data_group']} in {m.get('functional_process', 'Unknown')}")
                     excluded_count += 1
                     continue
                 
                 # Vérification supplémentaire pour les sources/destinations textuelles
                 if (m["source"].lower().strip() == "system" and m["destination"].lower().strip() == "system"):
-                    logger.warning(f"🚫 EXCLUDED literal System→System: {m['action']} {m['data_group']} in {m.get('process_name', 'Unknown')}")
+                    logger.warning(f"🚫 EXCLUDED literal System→System: {m['action']} {m['data_group']} in {m.get('functional_process', 'Unknown')}")
                     excluded_count += 1
                     continue
                 
@@ -545,7 +577,7 @@ class EnhancedCosmicRuleEngine:
                             "object_of_interest": m.get("object_of_interest", ""),
                             "source": m["source"],
                             "destination": "System",
-                            "functional_process": m.get("process_name", "")
+                            "functional_process": m.get("functional_process", "")
                         },
                         {
                             "action": "Store",
@@ -553,7 +585,7 @@ class EnhancedCosmicRuleEngine:
                             "object_of_interest": m.get("object_of_interest", ""),
                             "source": "System",
                             "destination": "Storage",
-                            "functional_process": m.get("process_name", "")
+                            "functional_process": m.get("functional_process", "")
                         }
                     ]
                     valid_movements.extend(decomposed)

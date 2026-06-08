@@ -5,7 +5,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from tabulate import tabulate
 
 # === Configuration ===
-REF_PATH  = "config/True_reference_business.jsonl"
+REF_PATH  = "config/True_reference_business copy 2.jsonl"
 #PRED_PATH = "config\prediction.jsonl"
 PRED_PATH = "config\prediction.jsonl"
 THRESHOLD = 0.8  # cosine similarity threshold

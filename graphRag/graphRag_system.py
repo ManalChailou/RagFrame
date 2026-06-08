@@ -45,6 +45,8 @@ class CosmicGraphRAGSystem:
         self.uri = uri or os.getenv("NEO4J_URI", "bolt://localhost:7687")
         self.user = user or os.getenv("NEO4J_USER", "neo4j")
         self.password = password or os.getenv("NEO4J_PASSWORD")
+        self.database = os.getenv("NEO4J_DATABASE", "neo4j")
+        self._retrieval_trace: List[Dict[str, Any]] = []
 
         if not self.password:
             raise RuntimeError("Missing NEO4J_PASSWORD in .env")
@@ -68,7 +70,7 @@ class CosmicGraphRAGSystem:
         params: Optional[Dict[str, Any]] = None
     ) -> List[Dict]:
         params = params or {}
-        with self.driver.session() as session:
+        with self.driver.session(database=self.database) as session:
             result = session.run(cypher, params)
             return [record.data() for record in result]
 
@@ -79,6 +81,28 @@ class CosmicGraphRAGSystem:
         except Exception as e:
             logger.error(f"Neo4j connection failed: {e}")
             return False
+
+    def reset_retrieval_trace(self) -> None:
+        self._retrieval_trace = []
+
+    def get_retrieval_trace(self) -> List[Dict[str, Any]]:
+        return [dict(item) for item in self._retrieval_trace]
+
+    def _record_retrieved_examples(
+        self,
+        requested_components: List[str],
+        rows: List[Dict],
+    ) -> None:
+        requested = ",".join(requested_components)
+        for row in rows:
+            self._retrieval_trace.append({
+                "id": row.get("id"),
+                "requested_component": requested,
+                "cosmic_component": row.get("cosmic_component"),
+                "functional_process": row.get("functional_process"),
+                "app_domain": row.get("app_domain"),
+                "score": row.get("score", 0),
+            })
 
     def get_graph_stats(self) -> Dict:
         node_query = """
@@ -112,7 +136,6 @@ class CosmicGraphRAGSystem:
         query = """
         MATCH (n)
         WHERE n:ExampleKnowledge
-           OR n:ExampleKnowledgeChunk
            OR n:FURExample
            OR n:ExampleFunctionalUser
            OR n:ExampleFunctionalProcess
@@ -243,13 +266,16 @@ class CosmicGraphRAGSystem:
 
             seen.add(eid)
 
-            component_domain = (
-                row.get("component_domain")
-                or row.get("domain")
-                or "example"
-            )
+            cosmic_component = row.get("cosmic_component") or "example"
+            functional_process = row.get("functional_process") or ""
+            app_domain = row.get("app_domain") or ""
+            score = row.get("score", 0)
 
-            context += f"- [{component_domain}] {self._truncate(content)}\n"
+            context += (
+                f"- [{cosmic_component} | FP={functional_process} | "
+                f"domain={app_domain} | id={eid} | score={score}] "
+                f"{self._truncate(content)}\n"
+            )
 
         return context.strip() + "\n"
 
@@ -313,7 +339,8 @@ class CosmicGraphRAGSystem:
         OPTIONAL MATCH (fp)-[:MUST_BE_INITIATED_BY]->(te)
         OPTIONAL MATCH (fp)-[:MUST_BE_PARTITIONED_INTO]->(dm)
         OPTIONAL MATCH (fp)-[:MUST_HAVE]->(entry)
-        OPTIONAL MATCH (fp)-[:MUST_HAVE_AT_LEAST_ONE_OF]->(required)
+        OPTIONAL MATCH (fp)-[:MUST_SATISFY]->(group:RequirementGroup)
+        OPTIONAL MATCH (group)-[:HAS_OPTION]->(required)
         RETURN
             fp.name AS component,
             collect(DISTINCT te.name) AS initiated_by,
@@ -379,95 +406,79 @@ class CosmicGraphRAGSystem:
         requirements: List[str],
         component_domains: List[str],
         app_domain: Optional[str] = None,
-        limit: int = 3
+        limit: int = 3,
+        min_lexical_score: int = 1,
     ) -> List[Dict]:
-        """
-        Retrieve examples from the examples layer.
-
-        Important:
-        - Supports both labels used during your iterations:
-          ExampleKnowledge and ExampleKnowledgeChunk.
-        - Supports both property names:
-          component_domain and domain.
-        - Does not strictly filter by app_domain. It ranks same-domain examples
-          first but still returns examples if the stored domain differs.
-        """
-        normalized_domains = [
-            str(d).strip().lower()
-            for d in (component_domains or [])
-            if str(d).strip()
+        normalized_components = [
+            str(value).strip().lower()
+            for value in (component_domains or [])
+            if str(value).strip()
         ]
 
         terms = self._extract_query_terms(requirements)
         normalized_app_domain = (app_domain or "").strip().lower()
 
+        if not normalized_components or not terms:
+            return []
+
         query = """
-        MATCH (ex)
-        WHERE (ex:ExampleKnowledge OR ex:ExampleKnowledgeChunk)
-          AND toLower(coalesce(ex.component_domain, ex.domain, "")) IN $component_domains
+        MATCH (ex:ExampleKnowledge)
+        WHERE toLower(coalesce(ex.cosmic_component, "")) IN $components
 
         WITH ex,
-             toLower(coalesce(ex.app_domain, "")) AS ex_domain,
-             toLower(coalesce(ex.component_domain, ex.domain, "")) AS component_domain,
-             toLower(coalesce(ex.content, "")) AS content,
-             coalesce(ex.keywords, []) AS keywords
+            toLower(coalesce(ex.app_domain, "")) AS stored_domain,
+            toLower(coalesce(ex.content, "")) AS normalized_content,
+            toLower(coalesce(ex.functional_process, "")) AS normalized_fp
 
-        WITH ex, ex_domain, component_domain, content, keywords,
-             CASE
+        WHERE $app_domain = ""
+        OR stored_domain = $app_domain
+        OR stored_domain = "general"
+
+        WITH ex, stored_domain, normalized_content, normalized_fp,
+            size([
+                term IN $terms
+                WHERE normalized_content CONTAINS term
+                    OR normalized_fp CONTAINS term
+            ]) AS lexical_score
+
+        WHERE lexical_score >= $min_lexical_score
+
+        WITH ex, stored_domain, lexical_score,
+            CASE
                 WHEN $app_domain = "" THEN 0
-                WHEN ex_domain = $app_domain THEN 3
-                WHEN ex_domain = "general" THEN 2
-                ELSE 1
-             END AS domain_score,
-             size([t IN $terms WHERE content CONTAINS t]) AS content_score,
-             size([kw IN keywords
-                   WHERE toLower(toString(kw)) IN $terms
-                      OR content CONTAINS toLower(toString(kw))]) AS keyword_score
+                WHEN stored_domain = $app_domain THEN 4
+                WHEN stored_domain = "general" THEN 2
+                ELSE 0
+            END AS domain_score
 
         RETURN
             ex.id AS id,
-            component_domain AS component_domain,
-            ex_domain AS app_domain,
-            ex.section AS section,
+            ex.cosmic_component AS cosmic_component,
+            ex.functional_process AS functional_process,
+            ex.app_domain AS app_domain,
             ex.content AS content,
-            domain_score + content_score + keyword_score AS score
-        ORDER BY score DESC, ex.id
+            lexical_score AS lexical_score,
+            domain_score + lexical_score AS score
+
+        ORDER BY score DESC, lexical_score DESC, ex.id
         LIMIT $limit
         """
 
         rows = self._run_query(
             query,
             {
-                "component_domains": normalized_domains,
+                "components": normalized_components,
                 "app_domain": normalized_app_domain,
                 "terms": terms,
-                "limit": limit
-            }
+                "min_lexical_score": max(1, int(min_lexical_score)),
+                "limit": max(1, int(limit)),
+            },
         )
 
-        # Fallback to structured FURExample nodes if raw ExampleKnowledge is absent.
-        if not rows:
-            fallback_query = """
-            MATCH (fur:FURExample)
-            WHERE toLower(coalesce(fur.component_domain, "")) IN $component_domains
-            RETURN
-                fur.id AS id,
-                toLower(coalesce(fur.component_domain, "example")) AS component_domain,
-                toLower(coalesce(fur.app_domain, "")) AS app_domain,
-                "FURExample" AS section,
-                fur.text AS content,
-                0 AS score
-            ORDER BY fur.id
-            LIMIT $limit
-            """
-
-            rows = self._run_query(
-                fallback_query,
-                {
-                    "component_domains": normalized_domains,
-                    "limit": limit
-                }
-            )
+        self._record_retrieved_examples(
+            normalized_components,
+            rows,
+        )
 
         return rows
 
@@ -757,30 +768,34 @@ class CosmicGraphRAGSystem:
         """
 
         example_query = """
-        MATCH (ex)
-        WHERE ex:ExampleKnowledge OR ex:ExampleKnowledgeChunk
+        MATCH (ex:ExampleKnowledge)
         WITH ex,
-             toLower(coalesce(ex.content, "")) AS content,
-             toLower(coalesce(ex.component_domain, ex.domain, "")) AS component_domain,
-             coalesce(ex.keywords, []) AS keywords
-        WITH ex, content, component_domain, keywords,
-             size([kw IN keywords
-                   WHERE toLower($query_text) CONTAINS toLower(toString(kw))
-                      OR content CONTAINS toLower(toString(kw))]) AS keyword_score
+             toLower(coalesce(ex.content, "")) AS normalized_content,
+             toLower(coalesce(ex.functional_process, "")) AS normalized_fp
+        WITH ex,
+             size([
+                term IN $query_terms
+                WHERE normalized_content CONTAINS term
+                   OR normalized_fp CONTAINS term
+             ]) AS lexical_score
         RETURN
             ex.id AS id,
-            ex.section AS section,
-            component_domain AS title,
+            ex.cosmic_component AS section,
+            ex.cosmic_component AS title,
             ex.content AS content,
-            "ExampleKnowledge" AS type
-        ORDER BY keyword_score DESC, ex.id
+            "ExampleKnowledge" AS type,
+            ex.functional_process AS functional_process,
+            ex.app_domain AS app_domain,
+            lexical_score AS score
+        ORDER BY score DESC, ex.id
         LIMIT $top_k
         """
 
         params = {
             "component_names": component_names,
             "top_k": top_k,
-            "query_text": q
+            "query_text": q,
+            "query_terms": self._extract_query_terms([q]),
         }
 
         rows = []
@@ -789,4 +804,3 @@ class CosmicGraphRAGSystem:
         rows.extend(self._run_query(validation_query, params))
         rows.extend(self._run_query(example_query, params))
         return rows
-

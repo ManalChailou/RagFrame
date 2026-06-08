@@ -31,7 +31,7 @@ class RequirementInput(BaseModel):
     app_domain: Optional[str] = "business"  # business | real_time
     validation_level: Optional[str] = "none"  # none | standard | comprehensive
     # NEW: LLM selection
-    llm_name: str = "gpt" # gpt | claude | gemini | deepseek | grok | minimax
+    llm_name: str = "openai" # gpt | claude | gemini | deepseek | grok | minimax
 
 class PerStoryResult(BaseModel):
     user_story: str

@@ -313,6 +313,9 @@ Step-by-Step Instructions:
 5. Exclude control commands or display-only labels from data groups.
 6. Each data group must describe a cohesive set of attributes about one Object of Interest.
 7. Do NOT include storage media (RAM, ROM, database, cache) as Data Groups: these are Storage.
+8. Do NOT invent attributes that are absent from the requirement.
+9. Retrieved examples illustrate structure only; never copy attributes from a different requirement.
+10. When attributes are not explicit, return an empty Attributes list rather than guessing.
 
 
 COSMIC DATA GROUP PRINCIPLES:
@@ -380,15 +383,18 @@ Step-by-Step Instructions:
 3. Always decompose complex operations into elementary data movements
 4. If the system performs a decision (approve/reject), generates a result (report, confirmation), or updates data (modify, approve), 
    then you MUST include a movement from System to User (or External) to deliver the result — this is an Exit movement.
-5. If the system saves data to Storage, but no feedback is shown to the User, include a confirmation step from System → User (Exit).
-6. Do NOT skip output movements just because the FUR doesn't say "confirmation" — always assume users expect feedback.
-7. Apply Entry, Exit, Read, Write rules from the COSMIC knowledge context above.
+5. Add a confirmation or error Exit only when it is explicitly required by the FUR.
+6. Never invent feedback that the FUR does not require.
+7. Preserve every explicit exchange with a named external functional user: System → External is an Exit; External → System is an Entry.
+8. For error or confirmation messages, use the dedicated MovedDataGroup "ErrorConfirmationMessage".
+9. Internal validation, comparison, calculation and formatting are not separate movements unless they access persistent storage or cross the boundary.
+10. Apply Entry, Exit, Read and Write rules from the COSMIC context.
 
 Guidelines for Sources and Destinations:
 - Functional User = "User"
 - Internal system = "System"
 - Storage/Persistent store = "Storage"
-- External application = "External"
+- External application = use its explicit name when known, otherwise "External"
 
 ACTION VERB GUIDELINES:
 - Use WRITE only for: System → Storage (save, store, persist, archive)
@@ -622,6 +628,9 @@ Sub-processes to rewrite:
         results = {}
 
         try:
+            if self.rag_system and hasattr(self.rag_system, "reset_retrieval_trace"):
+                self.rag_system.reset_retrieval_trace()
+
             # 1. Functional Users
             logger.info("Extracting Functional Users with RAG context...")
             fu_prompt = self.create_functional_users_prompt(requirements)
@@ -683,9 +692,21 @@ Sub-processes to rewrite:
             }
 
             if self.rag_system:
+                retrieval_trace = (
+                    self.rag_system.get_retrieval_trace()
+                    if hasattr(self.rag_system, "get_retrieval_trace")
+                    else []
+                )
+                retrieved_ids = list(dict.fromkeys(
+                    item.get("id")
+                    for item in retrieval_trace
+                    if item.get("id")
+                ))
                 results["rag_metadata"] = {
-                    "knowledge_chunks_used": True,
-                    "validation_context_available": True
+                    "knowledge_chunks_used": bool(retrieved_ids),
+                    "retrieved_example_ids": retrieved_ids,
+                    "retrieved_examples": retrieval_trace,
+                    "validation_context_available": True,
                 }
             logger.info("Component extraction with RAG completed successfully")
             return results
