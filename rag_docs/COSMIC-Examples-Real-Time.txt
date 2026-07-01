@@ -1,0 +1,124 @@
+DOMAIN: real_time
+EXAMPLE_ID: realtime_start_cooking
+TITLE: Start Cooking
+
+INPUT REQUIREMENT:
+On receipt of the Start signal, the software sends Turn ON signals to both the Cooking Lamp and the Heater.
+
+FUNCTIONAL USERS:
+- Start button
+- Cooking Lamp
+- Heater
+
+FUNCTIONAL PROCESS:
+- Start Cooking
+
+TRIGGERING EVENT:
+- Start button pressed
+
+TRIGGERING FUNCTIONAL USER:
+- Start button
+
+TRIGGERING ENTRY:
+- Start signal
+
+DATA GROUPS:
+- Start signal
+- Heater On/Off command
+- Cooking Lamp On/Off command
+
+SUB-PROCESSES:
+- Receive Start Signal | Source: Start button | Destination: System | Data Group: Start signal | Movement Type: Entry
+- Send Heater Command | Source: System | Destination: Heater | Data Group: Heater On/Off command | Movement Type: Exit
+- Send Lamp Command | Source: System | Destination: Cooking Lamp | Data Group: Cooking Lamp On/Off command | Movement Type: Exit
+
+CFP:
+- Entry: 1
+- Exit: 2
+- Total: 3
+
+---
+DOMAIN: real_time
+EXAMPLE_ID: realtime_update_target_temperature
+TITLE: Update Target Temperature
+
+INPUT REQUIREMENT:
+On receipt of a 30-second signal, the software receives elapsed time, reads cooking mode and target temperature, then stores the new current target temperature.
+
+FUNCTIONAL USERS:
+- Timer
+
+FUNCTIONAL PROCESS:
+- Update Target Temperature
+
+TRIGGERING EVENT:
+- 30-second signal
+
+TRIGGERING FUNCTIONAL USER:
+- Timer
+
+TRIGGERING ENTRY:
+- 30-second signal
+
+DATA GROUPS:
+- 30-second signal
+- Current elapsed time
+- Current cooking mode
+- New target temperature
+- Current target temperature
+
+SUB-PROCESSES:
+- Receive 30-second Signal | Source: Timer | Destination: System | Data Group: 30-second signal | Movement Type: Entry
+- Receive Elapsed Time | Source: Timer | Destination: System | Data Group: Current elapsed time | Movement Type: Entry
+- Read Cooking Mode | Source: Persistent Storage | Destination: System | Data Group: Current cooking mode | Movement Type: Read
+- Read Target Temperature | Source: Persistent Storage | Destination: System | Data Group: New target temperature | Movement Type: Read
+- Write Target Temperature | Source: System | Destination: Persistent Storage | Data Group: Current target temperature | Movement Type: Write
+
+CFP:
+- Entry: 2
+- Read: 2
+- Write: 1
+- Total: 5
+
+---
+DOMAIN: real_time
+EXAMPLE_ID: realtime_check_cooker_temperature
+TITLE: Check Cooker Temperature
+
+INPUT REQUIREMENT:
+On receipt of a 5-second signal, the software reads the current target temperature, receives the sensor temperature and sends an ON or OFF command to the Heater.
+
+FUNCTIONAL USERS:
+- Timer
+- Temperature Sensor
+- Heater
+
+FUNCTIONAL PROCESS:
+- Check Cooker Temperature
+
+TRIGGERING EVENT:
+- 5-second signal
+
+TRIGGERING FUNCTIONAL USER:
+- Timer
+
+TRIGGERING ENTRY:
+- 5-second signal
+
+DATA GROUPS:
+- 5-second signal
+- Current target temperature
+- Actual sensor temperature
+- Heater On/Off command
+
+SUB-PROCESSES:
+- Receive 5-second Signal | Source: Timer | Destination: System | Data Group: 5-second signal | Movement Type: Entry
+- Read Target Temperature | Source: Persistent Storage | Destination: System | Data Group: Current target temperature | Movement Type: Read
+- Receive Sensor Temperature | Source: Temperature Sensor | Destination: System | Data Group: Actual sensor temperature | Movement Type: Entry
+- Send Heater Command | Source: System | Destination: Heater | Data Group: Heater On/Off command | Movement Type: Exit
+
+CFP:
+- Entry: 2
+- Read: 1
+- Exit: 1
+- Total: 4

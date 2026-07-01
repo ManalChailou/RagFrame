@@ -1,0 +1,185 @@
+DOMAIN: business
+EXAMPLE_ID: business_add_professor
+TITLE: Add Professor
+
+INPUT REQUIREMENT:
+When a Registrar selects Add Professor, the Registrar enters Professor data including ID, name, address, SSN, department, qualifications and contact. The system validates the data, checks for duplicates, creates the record if valid, otherwise displays an error message.
+
+FUNCTIONAL USERS:
+- Registrar
+
+FUNCTIONAL PROCESS:
+- Add Professor
+
+TRIGGERING EVENT:
+- Registrar selects Add Professor
+
+TRIGGERING FUNCTIONAL USER:
+- Registrar
+
+TRIGGERING ENTRY:
+- Professor data
+
+DATA GROUPS:
+- Professor: ID, name, address, SSN, department, qualifications, contact
+
+SUB-PROCESSES:
+- Enter Professor Details | Source: Registrar | Destination: System | Data Group: Professor | Movement Type: Entry
+- Check Professor Duplicates | Source: Persistent Storage | Destination: System | Data Group: Professor | Movement Type: Read
+- Create Professor Record | Source: System | Destination: Persistent Storage | Data Group: Professor | Movement Type: Write
+- Display Error Message | Source: System | Destination: Registrar | Data Group: Professor | Movement Type: Exit
+
+CFP:
+- Entry: 1
+- Read: 1
+- Write: 1
+- Exit: 1
+- Total: 4
+
+---
+DOMAIN: business
+EXAMPLE_ID: business_enquire_professor
+TITLE: Enquire on Professor
+
+INPUT REQUIREMENT:
+When a Registrar selects Enquire on Professor, the Registrar enters a Professor ID. The system retrieves and displays the corresponding Professor details or an error message if the Professor is not found.
+
+FUNCTIONAL USERS:
+- Registrar
+
+FUNCTIONAL PROCESS:
+- Enquire on Professor
+
+TRIGGERING EVENT:
+- Registrar selects Enquire on Professor
+
+TRIGGERING FUNCTIONAL USER:
+- Registrar
+
+TRIGGERING ENTRY:
+- Professor ID
+
+DATA GROUPS:
+- Professor: Professor ID, Professor details
+
+SUB-PROCESSES:
+- Enter Professor ID | Source: Registrar | Destination: System | Data Group: Professor | Movement Type: Entry
+- Read Professor Details | Source: Persistent Storage | Destination: System | Data Group: Professor | Movement Type: Read
+- Display Professor Details or Error | Source: System | Destination: Registrar | Data Group: Professor | Movement Type: Exit
+
+CFP:
+- Entry: 1
+- Read: 1
+- Exit: 1
+- Total: 3
+
+---
+DOMAIN: business
+EXAMPLE_ID: business_modify_professor
+TITLE: Modify Professor
+
+INPUT REQUIREMENT:
+When a Registrar selects Modify Professor, the Registrar edits the displayed Professor data. The system validates the data, updates the Professor record and displays one confirmation or error response.
+
+FUNCTIONAL USERS:
+- Registrar
+
+FUNCTIONAL PROCESS:
+- Modify Professor
+
+TRIGGERING EVENT:
+- Registrar selects Modify Professor
+
+TRIGGERING FUNCTIONAL USER:
+- Registrar
+
+TRIGGERING ENTRY:
+- Edited Professor data
+
+DATA GROUPS:
+- Professor: edited Professor details
+
+SUB-PROCESSES:
+- Enter Edited Professor Data | Source: Registrar | Destination: System | Data Group: Professor | Movement Type: Entry
+- Read Existing Professor | Source: Persistent Storage | Destination: System | Data Group: Professor | Movement Type: Read
+- Update Professor Record | Source: System | Destination: Persistent Storage | Data Group: Professor | Movement Type: Write
+- Display Confirmation or Error | Source: System | Destination: Registrar | Data Group: Professor | Movement Type: Exit
+
+CFP:
+- Entry: 1
+- Read: 1
+- Write: 1
+- Exit: 1
+- Total: 4
+
+---
+DOMAIN: business
+EXAMPLE_ID: business_delete_professor
+TITLE: Delete Professor
+
+INPUT REQUIREMENT:
+When a Registrar selects Delete Professor, the system asks the Course Catalog whether the Professor has course offering commitments. The Course Catalog replies yes or no. The Registrar confirms deletion, then the system deletes the Professor record or displays an error.
+
+FUNCTIONAL USERS:
+- Registrar
+- Course Catalog
+
+FUNCTIONAL PROCESS:
+- Delete Professor
+
+TRIGGERING EVENT:
+- Registrar selects Delete Professor
+
+TRIGGERING FUNCTIONAL USER:
+- Registrar
+
+TRIGGERING ENTRY:
+- Professor deletion request
+
+DATA GROUPS:
+- Professor: Professor identifier and deletion request
+- Course Offering: commitment status
+
+SUB-PROCESSES:
+- Enter Deletion Request | Source: Registrar | Destination: System | Data Group: Professor | Movement Type: Entry
+- Send Commitments Check | Source: System | Destination: Course Catalog | Data Group: Course Offering | Movement Type: Exit
+- Receive Commitments Response | Source: Course Catalog | Destination: System | Data Group: Course Offering | Movement Type: Entry
+- Confirm Deletion | Source: Registrar | Destination: System | Data Group: Professor | Movement Type: Entry
+- Delete Professor Record | Source: System | Destination: Persistent Storage | Data Group: Professor | Movement Type: Write
+- Display Error or Result | Source: System | Destination: Registrar | Data Group: Professor | Movement Type: Exit
+
+---
+DOMAIN: business
+EXAMPLE_ID: business_enquire_course_offerings
+TITLE: Enquire on Course Offerings
+
+INPUT REQUIREMENT:
+When a Professor selects Enquire on Course Offerings, the Professor enters an ID. The system reads the Professor qualifications, sends them to the Course Catalog, receives relevant Course Offerings, and displays the Professor department and returned Course Offerings or an error.
+
+FUNCTIONAL USERS:
+- Professor
+- Course Catalog
+
+FUNCTIONAL PROCESS:
+- Enquire on Course Offerings
+
+TRIGGERING EVENT:
+- Professor selects Enquire on Course Offerings
+
+TRIGGERING FUNCTIONAL USER:
+- Professor
+
+TRIGGERING ENTRY:
+- Professor ID
+
+DATA GROUPS:
+- Professor: Professor ID, qualifications, department
+- Course Offering: returned course offerings
+
+SUB-PROCESSES:
+- Enter Professor ID | Source: Professor | Destination: System | Data Group: Professor | Movement Type: Entry
+- Read Professor Qualifications | Source: Persistent Storage | Destination: System | Data Group: Professor | Movement Type: Read
+- Send Qualifications | Source: System | Destination: Course Catalog | Data Group: Professor | Movement Type: Exit
+- Receive Course Offerings | Source: Course Catalog | Destination: System | Data Group: Course Offering | Movement Type: Entry
+- Display Professor Department | Source: System | Destination: Professor | Data Group: Professor | Movement Type: Exit
+- Display Course Offerings or Error | Source: System | Destination: Professor | Data Group: Course Offering | Movement Type: Exit

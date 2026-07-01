@@ -1,8 +1,15 @@
 import json, os
+import sys
+from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import Any, List, Dict, Optional, Literal
 import logging
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from enhanced_prompt_dispatcher_MFS import EnhancedPromptDispatcher
 from enhanced_rule_engine import EnhancedCosmicRuleEngine
@@ -19,24 +26,77 @@ logger = logging.getLogger(__name__)
 class RequirementInput(BaseModel):
     requirements: List[str]
     format: str = "user_stories"
-    retrieval_backend: str = "managed_file_search" # "local_rag" | "none"
-    app_domain: Optional[str] = "business"  #business | real_time
-    # NEW: LLM selection
-    llm_name: str = "gpt" # gpt | claude | gemini | deepseek | grok | minimax
+    retrieval_backend: Literal["managed_file_search", "local_rag", "none"] = "managed_file_search"
+    app_domain: Optional[Literal["business", "real_time"]] = "business"
+    llm_name: str = "openai"
+    validation_level: Literal["none", "standard", "comprehensive"] = "none"
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "requirements": [
+                    "When a Registrar selects Add Professor, the Registrar enters Professor data and C-Reg creates the record if valid."
+                ],
+                "format": "user_stories",
+                "retrieval_backend": "managed_file_search",
+                "app_domain": "business",
+                "llm_name": "openai",
+                "validation_level": "none",
+            }
+        }
+
 
 class PerStoryResult(BaseModel):
     user_story: str
-    cosmic_components: Dict
-    data_movements: List[Dict]
-    cfp_summary: Dict
+    cosmic_components: Dict[str, Any]
+    data_movements: List[Dict[str, Any]]
+    cfp_summary: Dict[str, Any]
     rag_insights: Optional[List[str]] = None
-    validation_report: Optional[Dict] = None
+    validation_report: Optional[Dict[str, Any]] = None
+
 
 class MeasureResponse(BaseModel):
     results: List[PerStoryResult]
     global_cfp_total: int
     global_cfp_by_type: Dict[str, int]
-    rag_contexts: Optional[Dict] = None
+    rag_contexts: Optional[Dict[str, Any]] = None
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "results": [
+                    {
+                        "user_story": "When a Registrar selects Add Professor...",
+                        "cosmic_components": {
+                            "FunctionalUsers": ["Registrar"],
+                            "functional_processes": [],
+                            "data_groups": [],
+                            "sub_processes": [],
+                        },
+                        "data_movements": [],
+                        "cfp_summary": {
+                            "cfp_by_type": {"Entry": 0, "Exit": 0, "Read": 0, "Write": 0},
+                            "cfp_by_process": {},
+                            "total_cfp": 0,
+                            "quality_metrics": {},
+                        },
+                        "rag_insights": [],
+                        "validation_report": None,
+                    }
+                ],
+                "global_cfp_total": 0,
+                "global_cfp_by_type": {"Entry": 0, "Exit": 0, "Read": 0, "Write": 0},
+                "rag_contexts": {
+                    "story_1": {
+                        "functional_users": [],
+                        "functional_processes": [],
+                        "data_groups": [],
+                        "sub_processes": [],
+                        "domain": "business",
+                    }
+                },
+            }
+        }
 
 def _remove_storage_data_groups(components: Dict, normalizer) -> None:
     """
@@ -133,16 +193,16 @@ def save_prediction_jsonl(components: Dict, movements: List[Dict], path: str = "
         logger.error(f"Failed to save prediction.jsonl: {e}")
 
 # Initialize components
-prompt_dispatcher = EnhancedPromptDispatcher(llm_provider="openai", llm_model="gpt-4o-mini", llm_base_url=None)
+prompt_dispatcher = EnhancedPromptDispatcher(
+    llm_provider="openai",
+    llm_model="gpt-4o-mini",
+    llm_base_url=None,
+    retrieval_backend="none",
+)
 rule_engine = EnhancedCosmicRuleEngine()
 
-# Initialize standalone RAG system for query endpoints
-try:
-    standalone_rag = CosmicRAGSystem()
-    logger.info("Standalone RAG system initialized for query endpoints")
-except Exception as e:
-    logger.error(f"Failed to initialize standalone RAG system: {e}")
-    standalone_rag = None
+# Local RAG is initialized lazily only when explicitly requested.
+standalone_rag = None
 
 @app.post("/measure", response_model=MeasureResponse)
 async def measure_cosmic(input_data: RequirementInput):
@@ -157,6 +217,7 @@ async def measure_cosmic(input_data: RequirementInput):
 
         results: List[PerStoryResult] = []
         global_counts: Dict[str, int] = {"Entry": 0, "Exit": 0, "Read": 0, "Write": 0}
+        all_rag_contexts: Dict[str, Any] = {}
         
         prompt_dispatcher.set_app_domain(input_data.app_domain)
 
@@ -170,7 +231,6 @@ async def measure_cosmic(input_data: RequirementInput):
         )
         
         backend = input_data.retrieval_backend
-
         prompt_dispatcher.retrieval_backend = backend
 
         if backend == "none":
@@ -185,13 +245,14 @@ async def measure_cosmic(input_data: RequirementInput):
         elif backend == "managed_file_search":
             prompt_dispatcher.rag_system = None
             prompt_dispatcher.managed_grounding = ManagedGroundingBackend(
-                model="gpt-4o-mini",
                 temperature=llm_cfg.temperature,
+                max_num_results=5,
             )
 
-        for us in input_data.requirements:
+        for story_index, us in enumerate(input_data.requirements, start=1):
             # 1) Extraction de composants pour UNE user story
             components = prompt_dispatcher.extract_components([us])
+            all_rag_contexts[f"story_{story_index}"] = prompt_dispatcher.get_last_rag_contexts()
             _remove_storage_data_groups(components, rule_engine.normalize_entity)
 
             # 2) Rewrite StepName labels using a constrained LLM call, then convert SP -> raw movements
@@ -221,7 +282,7 @@ async def measure_cosmic(input_data: RequirementInput):
 
             # 5) Validation (optionnelle selon le niveau demandé)
             validation_report = None
-            if getattr(input_data, "validation_level", None) in ["standard", "comprehensive"]:
+            if input_data.validation_level in ["standard", "comprehensive"]:
                 validation_report = rule_engine.get_rag_enhanced_validation(processed_movements)
 
             # 6) Insights / rapport (optionnels)
@@ -250,23 +311,11 @@ async def measure_cosmic(input_data: RequirementInput):
 
         global_total = sum(global_counts.values())
 
-        single_rag_ctx = None
-        try:
-            # Si le dispatcher expose un getter, on l’utilise
-            single_rag_ctx = getattr(prompt_dispatcher, "get_last_rag_contexts", lambda: None)()
-        except Exception:
-            single_rag_ctx = None
-
-        # Si non disponible via getter, tenter de le lire dans la 1re US (cosmic_components)
-        if not single_rag_ctx and results and isinstance(results[0].cosmic_components, dict):
-            single_rag_ctx = results[0].cosmic_components.get("rag_contexts")
-
-        # Réponse finale (RAG context une seule fois)
         return MeasureResponse(
             results=results,
             global_cfp_total=global_total,
             global_cfp_by_type=global_counts,
-            rag_contexts=single_rag_ctx
+            rag_contexts=all_rag_contexts if backend != "none" else None,
         )
 
     except Exception as e:
@@ -282,20 +331,15 @@ async def measure_cosmic(input_data: RequirementInput):
 
 @app.get("/health")
 async def health_check():
-    """Enhanced health check with RAG system status"""
-    rag_status = "available" if standalone_rag else "unavailable"
-    prompt_rag_status = "available" if prompt_dispatcher.rag_system else "unavailable"
-    rule_rag_status = "available" if rule_engine.rag_system else "unavailable"
-    
+    """Health check without eagerly loading the local embedding model."""
+    managed_configured = bool(os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_VECTOR_STORE_ID"))
     return {
-        "status": "healthy", 
-        "version": "2.0.0",
-        "rag_systems": {
-            "standalone_rag": rag_status,
-            "prompt_dispatcher_rag": prompt_rag_status,
-            "rule_engine_rag": rule_rag_status
-        },
-        "knowledge_base_loaded": len(standalone_rag.knowledge_chunks) if standalone_rag else 0
+        "status": "healthy",
+        "version": "2.1.0",
+        "default_retrieval_backend": "managed_file_search",
+        "managed_file_search": "configured" if managed_configured else "not_configured",
+        "local_rag": "lazy_initialization",
+        "active_dispatcher_backend": prompt_dispatcher.retrieval_backend,
     }
 
 if __name__ == "__main__":

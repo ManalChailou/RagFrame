@@ -1,0 +1,646 @@
+COSMIC KNOWLEDGE BASE
+================================================================================
+
+This document contains COSMIC definitions, rules, guidance, and worked examples organized by application domain and COSMIC component.
+
+
+################################################################################
+APPLICATION DOMAIN: GENERAL
+################################################################################
+
+
+## COSMIC COMPONENT: DATA GROUPS
+--------------------------------------------------------------------------------
+
+### Data Groups Definition | Type: Definition
+
+A Data Group is a distinct, non-empty, non-ordered, non-redundant set of data attributes describing a single object of interest. A Data Attribute is the smallest parcel of information within an identified data group, carrying meaning from the FUR perspective. An Object of Interest is any 'thing' identified from the FUR perspective about which the software is required to process and/or store data. Key Properties: Each data group describes exactly one object of interest, must be distinct (no duplication), cannot be empty, are non-ordered collections, and must be non-redundant.
+
+----------------------------------------
+
+
+## COSMIC COMPONENT: DATA MOVEMENTS
+--------------------------------------------------------------------------------
+
+### Data Movement | Type: Definition
+
+General Data Movement Principle:
+- One data movement per Data Group per Functional Process, unless the FUR explicitly requires multiple occurrences.
+
+Counting Rules:
+- Entry: Count one Entry per object of interest per FP. Multiple Entries only if FUR explicitly require separate input events.
+- Exit: Count one Exit per object of interest per FP. Reports or complex outputs with multiple data groups → count each data group separately.
+- Read: Count one Read per data group per FP. Repeated reads of same data group within one process → count once.
+- Write: Count one Write per data group per FP. Creation, update, and deletion of same data group → each counts as one Write.
+
+Special Cases:
+- Error or confirmation messages: one Exit covers all standard confirmations; if output contains distinct business data, count a separate Exit.
+- Validation: if data retrieval is required for validation, count a Read separately from the Entry.
+- Batch or aggregated operations: count by distinct data groups affected.
+- Exclude control commands and display-only labels — they are not data movements.
+
+These rules complement the COSMIC data movement definitions and ensure consistent CFP counting across all sub-process decompositions.
+
+----------------------------------------
+
+### Error Message Handling Rules | Type: Rules
+
+Error Message Handling Rules in COSMIC measurement. General Rule: One Exit movement accounts for all error/confirmation message types from one functional process. Detailed Rules: If message provides only confirmation/error indication = single Exit for all message types, if message provides additional data beyond error/confirmation = separate Exit movement, error handling logic included in movement processing. Message Categories: Simple confirmations (OK, Error), informational messages, data-carrying error messages, system status messages. Counting Approach: Analyze message content, determine if additional data provided, count distinct data groups in messages, avoid over-counting message variations.
+
+----------------------------------------
+
+### Multiple Occurrence Rules | Type: Rules
+
+Multiple Occurrence Rules in COSMIC measurement. Core Rule: Multiple occurrences of different data values = single data movement count. Application: Different data values for same data group count as one movement, quantity of data doesn't affect movement count, batch processing of same data group = single movement. Examples: Processing 100 orders = single data movement (if same data group structure), reading customer list with 500 customers = single Read movement, generating reports for multiple periods = count by distinct data group types. Validation: Verify data group consistency across occurrences, ensure same object of interest across occurrences, document occurrence handling approach.
+
+----------------------------------------
+
+
+## COSMIC COMPONENT: FUNCTIONAL PROCESSES
+--------------------------------------------------------------------------------
+
+### Functional Processes Definition | Type: Definition
+
+A Functional Process is an elementary component of FUR comprising a unique, cohesive, independently executable set of data movements. Mandatory Requirements: Must be derived from at least one identifiable FUR, initiated by Entry data movement from functional user, comprise minimum two data movements (always one Entry plus Exit or Write), belong to one and only one layer, and complete when asynchronous timing point is reached per FUR. Characteristics: Elementary (cannot be decomposed further), cohesive (all data movements serve common purpose), independently executable, has a clear triggering event.
+
+----------------------------------------
+
+### Functional Processes Identification Rules | Type: Rules
+
+Identification Criteria: Each functional process must have a triggering Entry, be elementary (cannot be decomposed further), be cohesive (all data movements serve common purpose), and be independently executable. Structure Requirements: Minimum 2 data movements (1 Entry + 1 Exit OR 1 Write), no maximum limit (determined by FUR), all movements must relate to the same functional purpose. Validation Rules: Must have identifiable triggering event, produce observable result (Exit or Write), belong to single software layer.
+
+----------------------------------------
+
+
+## COSMIC COMPONENT: FUNCTIONAL USERS
+--------------------------------------------------------------------------------
+
+### Functional Users | Type: Definition
+
+A Functional User is any external entity (human, system, device, or time event) that exchanges data with the software across its boundary.
+
+Identification Principles:
+- The Functional User must exist outside the software boundary.
+- It can be a sender (provides data to the system), a recipient (receives data from the system), or both.
+- Types include:
+  • Human users: individuals interacting with the software through an interface.
+  • External software systems: other applications or services exchanging data.
+  • Hardware devices: sensors, actuators, controllers...
+  • Time-triggered events: system or clock signals initiating processes.
+
+----------------------------------------
+
+
+## COSMIC COMPONENT: QUALITY ASSURANCE
+--------------------------------------------------------------------------------
+
+### Common Errors Prevention | Type: Validation
+
+Common Mistakes: 1) Boundary Confusion (mixing software layers in single measurement scope), 2) User Misidentification (failing to identify all functional users), 3) Movement Overcounting (counting multiple occurrences as separate movements), 4) Granularity Inconsistency (mixing different levels of functional process granularity), 5) FUR Incompleteness (measuring based on incomplete or unclear requirements). Prevention Rules: Define FSM purpose and scope before measurement, maintain consistent granularity level, document all functional users, validate against FUR completeness, follow standard measurement patterns.
+
+----------------------------------------
+
+### Validation Checkpoints | Type: Validation
+
+Mandatory Validations: All functional processes have triggering Entry, each data movement moves exactly one data group, all functional users are identified and documented, minimum two data movements per functional process. Quality Assurance Practices: Maintain consistent level of granularity across functional processes, clearly define software boundaries before measurement, properly identify all functional users including humans, other software, and hardware devices, maintain detailed documentation for measurement reproducibility, validate measurements against FUR completeness and accuracy.
+
+----------------------------------------
+
+### Quality & Validation – Common Errors | Type: Quality Assurance
+
+Common issues to flag:
+- A step moves more than ONE Data Group.
+- User asks an operation that saves or updates data but no user feedback is emitted (missing Exit).
+- Internal processing counted as System→System movement.
+- Triggering event split across multiple processes without justification.
+- Data Group mixes unrelated attributes.
+
+----------------------------------------
+
+
+## COSMIC COMPONENT: SUB PROCESSES
+--------------------------------------------------------------------------------
+
+### Sub Processes Definition | Type: Definition
+
+A sub-process is an atomic step within a single Functional Process (FP) that corresponds to one COSMIC data movement: Entry, Read, Write, or Exit. The StepName must be short and normalized using the pattern Verb + Object, for example: Enter Professor, Read Professor, Update Professor, Delete Professor, Display Confirmation. Do not write narrative or long explanatory StepName values. Internal processing, calculation, validation, or decision alone is not a COSMIC data movement; if checking stored data is required, represent it as Read X. If a result is shown to the user, represent it as Display X, Display Confirmation, or Display Error Message.
+
+----------------------------------------
+
+### SP StepName Meaningful Normalization | Type: Rule
+
+StepName naming convention for COSMIC sub-processes: keep every StepName short but meaningful, using Verb + Business Object or Verb + Business Qualifier. Do not use long narrative sentences, but also do not reduce meaningful checks to only Verb + DataGroup. Preserve important qualifiers such as Duplicates, Commitments, Qualifications, Department, Conflicts, Selections, Status, and Error Message. Preferred forms: Enter Professor Details, Check Professor Duplicates, Read Professor, Display Professor Details, Update Professor, Request Professor Commitments, Receive Commitment Status, Check Professor Commitments, Delete Professor, Send Professor Qualifications, Receive Course Offerings, Display Professor Department, Display Course Offerings, Display Confirmation, Display Error Message. Bad: Check whether professor has any course offering commitments. Good: Check Professor Commitments. Bad: Validate and check if Professor exists in the database before creating the record. Good: Check Professor Duplicates. Bad: Show the result of the operation to the Registrar. Good: Display Confirmation.
+
+----------------------------------------
+
+
+################################################################################
+APPLICATION DOMAIN: BUSINESS
+################################################################################
+
+
+## COSMIC COMPONENT: DATA GROUPS
+--------------------------------------------------------------------------------
+
+### Data Groups | Type: Knowledge
+
+Identify persistent logical entities managed by the application.
+Nature: tables/collections and their logical groupings (Customer, Invoice, Product, Order, Payment).
+Persistence: usually stored in a database; stable identifiers and attributes.
+Heuristics: look for core business nouns and records that are created/read/updated/written.
+
+----------------------------------------
+
+### Examples — Data Groups | Type: Example
+Functional Process: Add a Professor
+
+Input: When a Registrar wishes to enter data about a new Professor, he selects the sub-option 'Add Professor' and enters Professor details including ID, name, address, social security number, Department, qualifications and contact details.
+Expected Output:
+Objects of Interest:
+- Professor: professor_id, name, address, social_security, department, qualifications, contact_details
+- Errors: error_text, validation_message
+
+----------------------------------------
+
+
+## COSMIC COMPONENT: FUNCTIONAL PROCESSES
+--------------------------------------------------------------------------------
+
+### Functional Processes | Type: Knowledge
+
+Identify end-to-end business transactions or reporting processes triggered by a user or system request.
+Triggers: form submissions, API calls, scheduled report requests.
+Heuristics: verbs indicating transaction intent (create, update, validate, approve, query, generate report).
+Boundary: the process is complete when the business goal is achieved (e.g., order placed, report generated).
+
+----------------------------------------
+
+### Examples — Functional Processes | Type: Example
+Functional Process: Add a Professor
+
+Input: When a Registrar wishes to enter data about a new Professor, he selects the sub-option 'Add Professor' and enters Professor details including ID, name, address, social security number, Department, qualifications and contact details.
+Expected Output:
+Functional Process: Add a Professor
+Triggering Event: A Registrar needs to add a Professor's details
+Functional User: Registrar
+Triggering Entry: A Registrar needs to add a Professor's details
+
+----------------------------------------
+
+
+## COSMIC COMPONENT: FUNCTIONAL USERS
+--------------------------------------------------------------------------------
+
+### Functional Users | Type: Knowledge
+
+Identify external entities that exchange business data with the software.
+Identification cues: role nouns (Customer, Employee), external systems (ERP, Payment Gateway), API callers.
+Include: people or systems that SEND data to the app (E) or RECEIVE data from it (X).
+Exclude: internal modules, DB engines, schedulers without boundary crossing.
+
+----------------------------------------
+
+### Examples — Functional Users | Type: Example
+Functional Process: Add a Professor
+
+Input: When a Registrar wishes to enter data about a new Professor, he selects the sub-option 'Add Professor' and enters Professor details including ID, name, address, social security number, Department, qualifications and contact details.
+Expected Output:
+Functional Users:
+- Registrar
+
+----------------------------------------
+
+
+## COSMIC COMPONENT: SUB PROCESSES
+--------------------------------------------------------------------------------
+
+### Sub-Processes & Data Movements | Type: Knowledge
+
+Decompose each Functional Process into atomic COSMIC data movements (E, X, R, W). Use short normalized StepName labels, not long descriptions. Common business patterns: form input = Enter X, database retrieval or validation using stored data = Read X, database save/update/delete = Create X / Update X / Delete X / Write X, response/display/report = Display X / Display Confirmation / Display Error Message. Compound CRUD actions must be split but labels must stay short: add/create = Enter X + Read X + Create X + Display Confirmation; modify = Select/Enter X + Read X + Display X + Update X + Display Confirmation; delete = Request X + Read X + Delete X + Display Confirmation; view/search = Request X + Read X + Display X.
+
+----------------------------------------
+
+### Examples — Sub-Processes | Type: Example
+Functional Process: Add a Professor
+
+Input: When a Registrar wishes to enter data about a new Professor, he selects the sub-option 'Add Professor' and enters Professor details including ID, name, address, social security number, Department, qualifications and contact details.
+Expected Output:
+Sub-processes:
+- Sub-process: Enter Professor
+  Functional User: Registrar
+  Moved Data Group: Professor details
+  Object of Interest: Professor
+  Source: Registrar
+  Destination: system
+  Type: Entry
+- Sub-process: Read Professor
+  Functional User: N/A
+  Moved Data Group: Professor details
+  Object of Interest: Professor
+  Source: storage
+  Destination: system
+  Type: Read
+- Sub-process: Create Professor
+  Functional User: N/A
+  Moved Data Group: Professor details
+  Object of Interest: Professor
+  Source: system
+  Destination: storage
+  Type: Write
+- Sub-process: Display Error Message
+  Functional User: Registrar
+  Moved Data Group: Error Messages
+  Object of Interest: Errors
+  Source: system
+  Destination: Registrar
+  Type: Exit
+
+----------------------------------------
+
+### Examples — Sub-Processes | Type: Example
+Functional Process: Create Course Offering Commitments
+
+Input: When a Professor creates Course Offering commitments: after viewing the list of eligible Course Offerings, the Professor selects the Offerings. The system sends the selected Course Offering IDs to the Course Catalog, receives the count of conflicting Course Offerings and their IDs, then displays either the conflicts or a confirmation message.
+
+Expected Output:
+Sub-processes:
+- Sub-process: Select Course Offerings
+  Functional User: Professor
+  Moved Data Group: Professor’s Course Offering selections
+  Object of Interest: Course Offering
+  Source: Professor
+  Destination: System
+  Type: Entry
+
+- Sub-process: Send Course Offerings
+  Functional User: System
+  Moved Data Group: Professor’s Course Offering selections
+  Object of Interest: Course Offering
+  Source: System
+  Destination: Course Catalog
+  Type: Exit
+
+- Sub-process: Receive Conflict Count
+  Functional User: Course Catalog
+  Moved Data Group: Count of conflicting courses
+  Object of Interest: Course Offering
+  Source: Course Catalog
+  Destination: System
+  Type: Entry
+
+- Sub-process: Receive Conflicting Offerings
+  Functional User: Course Catalog
+  Moved Data Group: Conflicting Course Offering selections
+  Object of Interest: Course Offering
+  Source: Course Catalog
+  Destination: System
+  Type: Entry
+
+- Sub-process: Display Conflicts
+  Functional User: Professor
+  Moved Data Group: Conflicting Course Offering selections
+  Object of Interest: Course Offering
+  Source: System
+  Destination: Professor
+  Type: Exit
+
+- Sub-process: Display Confirmation
+  Functional User: Professor
+  Moved Data Group: Confirmation Message
+  Object of Interest: Confirmation
+  Source: System
+  Destination: Professor
+  Type: Exit
+
+----------------------------------------
+
+### Examples — Sub-Processes | Type: Example
+Functional Process: Delete Professor
+
+Input: When a Registrar selects Delete Professor, the system asks Course Catalog if the Professor has Course Offering commitments. Course Catalog replies yes or no. The Registrar confirms deletion and the system deletes the Professor record, otherwise it displays an error.
+Expected Output:
+Sub-processes:
+- Sub-process: Request Professor Deletion
+  Functional User: Registrar
+  Moved Data Group: Professor
+  Object of Interest: Professor
+  Source: Registrar
+  Destination: System
+  Type: Entry
+- Sub-process: Request Professor Commitments
+  Functional User: Course Catalog
+  Moved Data Group: Professor Commitments
+  Object of Interest: Course Offering
+  Source: System
+  Destination: Course Catalog
+  Type: Exit
+- Sub-process: Receive Commitment Status
+  Functional User: Course Catalog
+  Moved Data Group: Professor Commitments
+  Object of Interest: Course Offering
+  Source: Course Catalog
+  Destination: System
+  Type: Entry
+- Sub-process: Confirm Professor Deletion
+  Functional User: Registrar
+  Moved Data Group: Professor Deletion Confirmation
+  Object of Interest: Professor
+  Source: Registrar
+  Destination: System
+  Type: Entry
+- Sub-process: Delete Professor
+  Functional User: N/A
+  Moved Data Group: Professor
+  Object of Interest: Professor
+  Source: System
+  Destination: Storage
+  Type: Write
+- Sub-process: Display Confirmation
+  Functional User: Registrar
+  Moved Data Group: Confirmation Message
+  Object of Interest: Confirmation
+  Source: System
+  Destination: Registrar
+  Type: Exit
+- Sub-process: Display Error Message
+  Functional User: Registrar
+  Moved Data Group: Error Message
+  Object of Interest: Error
+  Source: System
+  Destination: Registrar
+  Type: Exit
+
+----------------------------------------
+
+
+################################################################################
+APPLICATION DOMAIN: REAL TIME
+################################################################################
+
+
+## COSMIC COMPONENT: DATA GROUPS
+--------------------------------------------------------------------------------
+
+### Data Groups | Type: Knowledge
+
+Identify states, configuration parameters, calibration thresholds, and runtime tables used by control logic.
+Nature: may be volatile (in-memory buffers) or persistent (configuration), but logically grouped.
+Heuristics: look for state variables (DeviceState), setpoints (TemperatureThresholds), timers/counters
+
+----------------------------------------
+
+### Examples — Data Groups | Type: Example
+Functional Process: Stop Cooking
+
+Input: On receipt of the Stop signal, the software turns OFF the Heater, turns OFF the Cooking Lamp, and enters a wait state.
+Expected Output:
+Objects of Interest:
+- Stop button: Stop signal
+- Heater: Heater On/Off command
+- Cooking lamp: Cooking lamp On/Off command
+
+----------------------------------------
+
+### Examples — Data Groups | Type: Example
+Functional Process: Update Target temperature
+
+Input: On receipt of a 30-second signal the software receives the 30-second signal, waits for and receives the elapsed time signal, retrieves the current cooking mode from the RAM, gets a new target temperature for this cooking mode by obtaining it from the relationship stored in the ROM and stores this new target temperature into the RAM.
+Expected Output:
+Objects of Interest:
+- Timer: 30-second signal, Current elapsed time signal
+- Current settings: Current cooking mode, Current target temperature
+- Target settings: New target temperature
+
+----------------------------------------
+
+### Examples — Data Groups | Type: Example
+Functional Process: Start Cooking
+
+Input: On receipt of the Start signal, the software sends Turn ON signals to both the Cooking Lamp and the Heater.
+Expected Output:
+Objects of Interest:
+- Start Button: start_signal
+- Cooking Lamp: on_off_command
+- Heater: on_off_command
+
+----------------------------------------
+
+
+## COSMIC COMPONENT: FUNCTIONAL PROCESSES
+--------------------------------------------------------------------------------
+
+### Functional Processes | Type: Knowledge
+
+Identify event-driven control processes that respond to signals or timers and complete a control objective.
+Triggers: external interrupts, sensor thresholds, periodic timers, fault events.
+Heuristics: detect→decide→actuate chains; safety, fallback, debounce, hysteresis may be part of the same FP.
+Completion: when the control action finishes (e.g., actuator commanded and state updated) or a cycle ends.
+
+----------------------------------------
+
+### Examples — Functional Processes | Type: Example
+Functional Process: Check cooker temperature
+
+Input: On receipt of a 5-second signal the software receives the 5-second signal, retrieves the current target temperature from the RAM, retrieves the actual sensor temperature from the Temperature Sensor, sends a Turn ON or OFF command to the Heater.
+Expected Output:
+Functional Process: Check cooker temperature
+Triggering Event: 5-second signal
+Functional User: Timer
+Triggering Entry: 5-second signal received
+
+----------------------------------------
+
+### Examples — Functional Processes | Type: Example
+Functional Process: Update Target temperature
+
+Input: On receipt of a 30-second signal the software receives the 30-second signal, waits for and receives the elapsed time signal, retrieves the current cooking mode from the RAM, gets a new target temperature for this cooking mode by obtaining it from the relationship stored in the ROM and stores this new target temperature into the RAM.
+Expected Output:
+Functional Process: Update Target temperature
+Triggering Event: 30-second signal
+Functional User: Timer
+Triggering Entry: 30-second signal received
+
+----------------------------------------
+
+### Examples — Functional Processes | Type: Example
+Functional Process: Start Cooking
+
+Input: On receipt of the Start signal, the software sends Turn ON signals to both the Cooking Lamp and the Heater.
+Expected Output:
+Functional Process: Start Cooking
+Triggering Event: Start button pressed
+Functional User: Start button
+Triggering Entry: Start button pressed
+
+----------------------------------------
+
+
+## COSMIC COMPONENT: FUNCTIONAL USERS
+--------------------------------------------------------------------------------
+
+### Functional Users Definition | Type: Knowledge
+
+Identify external physical entities (sensors, actuators, devices) or systems exchanging signals with the software.
+Identification cues: hardware interfaces, signals, interrupts, timers, controllers.
+Include: entities that emit events/signals to the software (E) or receive control commands/notifications (X).
+Exclude: internal tasks/threads unless they represent an external interface.
+Typical phrasing: 'On receipt of <signal>...', 'When <sensor> triggers...', 'Send <command> to <device>'.
+
+----------------------------------------
+
+### Examples — Functional Users | Type: Example
+Functional Process: Check cooker temperature
+
+Input: On receipt of a 5-second signal the software receives the 5-second signal, retrieves the current target temperature from the RAM, retrieves the actual sensor temperature from the Temperature Sensor, sends a Turn ON or OFF command to the Heater.
+Expected Output:
+Functional Users:
+- Timer
+- Temperature Sensor
+- Heater
+
+----------------------------------------
+
+### Examples — Functional Users | Type: Example
+Functional Process: Update Target temperature
+
+Input: On receipt of a 30-second signal the software receives the 30-second signal, waits for and receives the elapsed time signal, retrieves the current cooking mode from the RAM, gets a new target temperature for this cooking mode by obtaining it from the relationship stored in the ROM and stores this new target temperature into the RAM.
+Expected Output:
+Functional Users:
+- Timer
+
+----------------------------------------
+
+### Examples — Functional Users | Type: Example
+Functional Process: Start Cooking
+
+Input: On receipt of the Start signal, the software sends Turn ON signals to both the Cooking Lamp and the Heater.
+Expected Output:
+Functional Users:
+- Start button
+- Cooking Lamp
+- Heater
+
+----------------------------------------
+
+
+## COSMIC COMPONENT: SUB PROCESSES
+--------------------------------------------------------------------------------
+
+### Sub-Processes & Data Movements | Type: Knowledge
+
+Decompose control processes into COSMIC data movements (E, X, R, W) across sensor/controller/actuator boundaries.
+Common patterns: E(signal reception), R(state or thresholds), X(control command), W(state/log update).
+Cyclic behavior: periodic monitor loops (timer-driven) still decompose into E/R/X/W per cycle.
+
+----------------------------------------
+
+### Examples — Sub-Processes | Type: Example
+Functional Process: Update Target temperature
+
+Input: On receipt of a 30-second signal the software receives the 30-second signal, waits for and receives the elapsed time signal, retrieves the current cooking mode from the RAM, gets a new target temperature for this cooking mode by obtaining it from the relationship stored in the ROM and stores this new target temperature into the RAM.
+Expected Output:
+Sub-processes:
+- Sub-process: Receive 30-second signal
+  Functional User: Timer
+  Moved Data Group: 30-second signal
+  Object of Interest: Timer
+  Source: Timer
+  Destination: system
+  Type: Entry
+- Sub-process: Receive Elapsed Time
+  Functional User: Timer
+  Moved Data Group: Current elapsed time signal
+  Object of Interest: Timer
+  Source: Timer
+  Destination: system
+  Type: Entry
+- Sub-process: Read Cooking Mode
+  Functional User: -
+  Moved Data Group: Current cooking mode
+  Object of Interest: Current settings
+  Source: Current settings (RAM)
+  Destination: system
+  Type: Read
+- Sub-process: Read Target Temperature
+  Functional User: -
+  Moved Data Group: New target temperature
+  Object of Interest: Target settings
+  Source: Target settings (ROM)
+  Destination: system
+  Type: Read
+- Sub-process: Write Target Temperature
+  Functional User: -
+  Moved Data Group: Current target temperature
+  Object of Interest: Current settings
+  Source: system
+  Destination: Current settings (RAM)
+  Type: Write
+
+----------------------------------------
+
+### Examples — Sub-Processes | Type: Example
+Functional Process: Check cooker temperature
+
+Input: On receipt of a 5-second signal the software receives the 5-second signal, retrieves the current target temperature from the RAM, retrieves the actual sensor temperature from the Temperature Sensor, sends a Turn ON or OFF command to the Heater.
+Expected Output:
+Sub-processes:
+- Sub-process: Receive 5-second signal
+  Functional User: Timer
+  Moved Data Group: 5-second signal
+  Object of Interest: Timer
+  Source: Timer
+  Destination: system
+  Type: Entry
+- Sub-process: Read Target Temperature
+  Functional User: -
+  Moved Data Group: Current target temperature
+  Object of Interest: Current settings
+  Source: Current settings (RAM)
+  Destination: system
+  Type: Read
+- Sub-process: Receive Sensor Temperature
+  Functional User: Temperature Sensor
+  Moved Data Group: Actual sensor temperature
+  Object of Interest: Temperature sensor
+  Source: Temperature Sensor
+  Destination: system
+  Type: Entry
+- Sub-process: Send Heater Command
+  Functional User: Heater
+  Moved Data Group: Heater On/Off command
+  Object of Interest: Heater
+  Source: system
+  Destination: Heater
+  Type: Exit
+
+----------------------------------------
+
+### Examples — Sub-Processes | Type: Example
+Functional Process: Start Cooking
+
+Input: On receipt of the Start signal, the software sends Turn ON signals to both the Cooking Lamp and the Heater.
+Expected Output:
+Sub-processes:
+- Sub-process: Receive Start Signal
+  Functional User: Start button
+  Moved Data Group: Start signal
+  Object of Interest: Start Button
+  Source: Start button
+  Destination: system
+  Type: Entry
+- Sub-process: Send Heater Command
+  Functional User: Heater
+  Moved Data Group: Heater On/Off command
+  Object of Interest: Heater
+  Source: system
+  Destination: Heater
+  Type: Exit
+- Sub-process: Send Lamp Command
+  Functional User: Cooking Lamp
+  Moved Data Group: Cooking lamp On/Off command
+  Object of Interest: Cooking Lamp
+  Source: system
+  Destination: Cooking Lamp
+  Type: Exit
+
+----------------------------------------

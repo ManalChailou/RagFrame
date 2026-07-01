@@ -6,8 +6,9 @@ from tabulate import tabulate
 
 # === Configuration ===
 REF_PATH  = "config/True_reference_business copy 2.jsonl"
-#PRED_PATH = "config\prediction.jsonl"
-PRED_PATH = "config\prediction.jsonl"
+#REF_PATH  = "config/True_reference_realtime_ALS copy.jsonl"
+PRED_PATH = "config/prediction.jsonl"
+#PRED_PATH = "config/Rag alt\prediction_graph_openai_business.jsonl"
 THRESHOLD = 0.8  # cosine similarity threshold
 
 # === Utility functions ===
