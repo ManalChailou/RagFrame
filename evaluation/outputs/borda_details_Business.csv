@@ -1,0 +1,7 @@
+Model,UseCase,Domain,F1,Rank,N_Models,Borda_Points
+Claude,C-REG,Business,0.96,1.0,6,5.0
+GPT,C-REG,Business,0.91,2.0,6,4.0
+DeepSeek,C-REG,Business,0.9,3.5,6,2.5
+Qwen,C-REG,Business,0.9,3.5,6,2.5
+Grok,C-REG,Business,0.85,5.0,6,1.0
+MiniMax,C-REG,Business,0.83,6.0,6,0.0

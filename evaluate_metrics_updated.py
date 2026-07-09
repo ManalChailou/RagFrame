@@ -5,7 +5,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from tabulate import tabulate
 
 # === Configuration ===
-REF_PATH  = "config/True_reference_business copy 2.jsonl"
+REF_PATH  = "config/True_reference_realtime_cooker.jsonl"
 #REF_PATH  = "config/True_reference_realtime_ALS copy.jsonl"
 PRED_PATH = "config/prediction.jsonl"
 #PRED_PATH = "config/Rag alt\prediction_graph_openai_business.jsonl"

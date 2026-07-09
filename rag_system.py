@@ -36,7 +36,8 @@ class CosmicRAGSystem:
         # NEW in load_knowledge_base()
         kb_path = Path(self.knowledge_base_path)
         stamp = int(kb_path.stat().st_mtime) if kb_path.exists() else 0
-        cache_file = self.cache_dir / f"cosmic_embeddings_{kb_path.stem}_{self.model_name.replace('/', '_')}_{stamp}.pkl"
+        cache_version = "schema_v2"  # changes when embedded JSONL fields change
+        cache_file = self.cache_dir / f"cosmic_embeddings_{kb_path.stem}_{self.model_name.replace('/', '_')}_{cache_version}_{stamp}.pkl"
 
         try:
             # Charger depuis le cache si disponible
@@ -64,13 +65,17 @@ class CosmicRAGSystem:
             for chunk in self.knowledge_chunks:
                 # Combiner les métadonnées et le contenu pour un meilleur matching
                 parts = [
+                    chunk.get('id', ''),
+                    chunk.get('app_domain', ''),
+                    chunk.get('cosmic_component', ''),
+                    chunk.get('functional_process', ''),
                     chunk.get('section', ''),
                     chunk.get('type', ''),
-                    ' '.join(chunk.get('keywords', [])),
-                    ' '.join(chunk.get('examples', [])) if 'examples' in chunk else '',
+                    ' '.join(chunk.get('keywords', [])) if isinstance(chunk.get('keywords', []), list) else str(chunk.get('keywords', '')),
+                    ' '.join(chunk.get('examples', [])) if isinstance(chunk.get('examples', []), list) else str(chunk.get('examples', '')),
                     chunk.get('content', '')
                 ]
-                text = ' '.join([p for p in parts if p])
+                text = ' '.join([str(p) for p in parts if p])
                 texts_to_embed.append(text)
             
             self.embeddings = self.embedding_model.encode(texts_to_embed)
@@ -89,55 +94,127 @@ class CosmicRAGSystem:
             logger.error(f"Error loading knowledge base: {e}")
             raise
     
-    def retrieve_relevant_chunks(self, query: str, top_k: int = 5, min_similarity: float = 0.3,domain_filter: Optional[str] = None,app_domain_filter: Optional[str] = None) -> List[Dict]:
+    def _chunk_matches_component(self, chunk: Dict, component_filter: Optional[str]) -> bool:
         """
-        Récupère les chunks les plus pertinents pour une requête
+        Match a retrieval filter against the JSONL schema.
+        The current KB uses `cosmic_component`, not `domain`.
+        Fallbacks are kept for compatibility with older KB files.
         """
-        if not self.embeddings.size:
+        if not component_filter:
+            return True
+
+        wanted = component_filter.strip().lower()
+        searchable_fields = [
+            chunk.get("cosmic_component", ""),  # current JSONL field
+            chunk.get("domain", ""),            # backward compatibility
+            chunk.get("section", ""),
+            chunk.get("type", ""),
+        ]
+        searchable = " ".join(str(v) for v in searchable_fields if v).lower()
+        return wanted in searchable
+
+    def _chunk_matches_app_domain(self, chunk: Dict, app_domain_filter: Optional[str]) -> bool:
+        """
+        Match application domain using the JSONL `app_domain` field.
+        `general` chunks are always allowed because they contain common COSMIC rules.
+        """
+        if not app_domain_filter:
+            return True
+
+        wanted = app_domain_filter.strip().lower()
+        value = str(chunk.get("app_domain", "") or "").lower()
+        return wanted in value or "general" in value
+
+    def _format_chunks_as_context(self, chunks: List[Dict]) -> str:
+        """
+        Return clean, prompt-ready RAG context.
+
+        Important:
+        - Do NOT inject technical metadata such as chunk id, app_domain,
+          cosmic_component, type, or similarity score into the LLM prompt.
+        - Keep only the human-readable knowledge/example content.
+        - Chunk metadata remains available internally through logging and
+          the retrieved chunk dictionaries.
+        """
+        context_parts = []
+
+        for chunk in chunks:
+            section = str(chunk.get("section", "") or "").strip()
+            content = str(chunk.get("content", "") or "").strip()
+
+            if not content:
+                continue
+
+            if section:
+                context_parts.append(f"{section}:\n{content}")
+            else:
+                context_parts.append(content)
+
+        return "\n\n".join(context_parts).strip() + ("\n\n" if context_parts else "")
+
+    def retrieve_relevant_chunks(
+        self,
+        query: str,
+        top_k: int = 5,
+        min_similarity: float = 0.3,
+        domain_filter: Optional[str] = None,
+        app_domain_filter: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieve the most relevant chunks for a query.
+
+        IMPORTANT:
+        - `domain_filter` is kept as the public argument name for compatibility.
+        - Internally it now matches the JSONL field `cosmic_component`.
+        - `app_domain_filter` matches the JSONL field `app_domain` and keeps `general` chunks.
+        """
+        if self.embeddings is None or len(self.embeddings) == 0:
             logger.warning("No embeddings available")
             return []
-        
-        try:
-            # Créer l'embedding de la requête
-            query_embedding = self.embedding_model.encode([query])
-            
-            # Calculer les similarités
-            similarities = cosine_similarity(query_embedding, self.embeddings)[0]
-            
-            # Filtrer par domaine si spécifié
-            if domain_filter:
-                domain_mask = np.array([
-                    domain_filter.lower() in chunk.get('domain', '').lower() 
-                    for chunk in self.knowledge_chunks
-                ])
-                similarities = similarities * domain_mask
 
-            # Filtrage par app_domain
+        try:
+            query_embedding = self.embedding_model.encode([query])
+            similarities = cosine_similarity(query_embedding, self.embeddings)[0]
+
+            # Filter by COSMIC component using the real JSONL field: cosmic_component
+            if domain_filter:
+                component_mask = np.array([
+                    self._chunk_matches_component(chunk, domain_filter)
+                    for chunk in self.knowledge_chunks
+                ], dtype=float)
+                similarities = similarities * component_mask
+
+            # Filter by application domain using the real JSONL field: app_domain
             if app_domain_filter:
                 app_mask = np.array([
-                    app_domain_filter.lower() in ((ch.get('app_domain', '') or '').lower()) or "general" in ((ch.get('app_domain', '') or '').lower())
-                    for ch in self.knowledge_chunks
-                ], dtype=float)  # cast to 0.0/1.0 for safe multiply
+                    self._chunk_matches_app_domain(chunk, app_domain_filter)
+                    for chunk in self.knowledge_chunks
+                ], dtype=float)
                 similarities = similarities * app_mask
-            
-            # Obtenir les indices des top_k chunks
+
             top_indices = np.argsort(similarities)[::-1][:top_k]
-            
-            # Filtrer par similarité minimale
+
             relevant_chunks = []
             for idx in top_indices:
-                if similarities[idx] >= min_similarity:
+                score = float(similarities[idx])
+                if score >= min_similarity:
                     chunk = self.knowledge_chunks[idx].copy()
-                    chunk['similarity_score'] = float(similarities[idx])
+                    chunk["similarity_score"] = score
                     relevant_chunks.append(chunk)
-            
-            logger.debug(f"Retrieved {len(relevant_chunks)} relevant chunks for query: {query[:50]}...")
+
+            logger.info(
+                "Retrieved %s chunks | component=%s | app_domain=%s | query=%s",
+                len(relevant_chunks),
+                domain_filter,
+                app_domain_filter,
+                query[:80]
+            )
             return relevant_chunks
-            
+
         except Exception as e:
             logger.error(f"Error retrieving chunks: {e}")
             return []
-    
+
     def get_context_for_functional_users(self, requirements: List[str], app_domain: Optional[str] = None) -> str:
         """ Récupère le contexte pertinent pour l'identification des utilisateurs fonctionnels """
 
@@ -149,11 +226,7 @@ class CosmicRAGSystem:
             app_domain_filter=app_domain
         )
         
-        context = ""
-        for chunk in chunks:
-            context += f"{chunk.get('content', '')}\n\n"
-        
-        return context
+        return self._format_chunks_as_context(chunks)
     
     def get_context_for_functional_processes(self, requirements: List[str], app_domain: Optional[str] = None) -> str:
         """ Récupère le contexte pertinent pour l'identification des processus fonctionnels """
@@ -166,11 +239,7 @@ class CosmicRAGSystem:
             app_domain_filter=app_domain
         )
         
-        context = ""
-        for chunk in chunks:
-            context += f"{chunk.get('content', '')}\n\n"
-        
-        return context
+        return self._format_chunks_as_context(chunks)
     
     def get_context_for_data_groups(self, requirements: List[str], functional_processes: List[Dict], app_domain: Optional[str] = None) -> str:
         """ Récupère le contexte pertinent pour l'identification des groupes de données """
@@ -184,11 +253,7 @@ class CosmicRAGSystem:
             app_domain_filter=app_domain
         )
         
-        context = ""
-        for chunk in chunks:
-            context += f"{chunk.get('content', '')}\n\n"
-        
-        return context
+        return self._format_chunks_as_context(chunks)
     
     def get_context_for_sub_processes(self,requirements: List[str],functional_processes: List[Dict],data_groups: List[Dict],app_domain: Optional[str] = None) -> str:
         """
@@ -227,13 +292,11 @@ class CosmicRAGSystem:
 
         if subproc_chunks:
             context += "Sub-Processes Context:\n"
-            for ch in subproc_chunks:
-                context += f"{ch.get('section','Unknown')}:\n{ch.get('content','')}\n\n"
+            context += self._format_chunks_as_context(subproc_chunks)
 
         if datamove_chunks:
             context += "Data Movements Context:\n"
-            for ch in datamove_chunks:
-                context += f"{ch.get('section','Unknown')}:\n{ch.get('content','')}\n\n"
+            context += self._format_chunks_as_context(datamove_chunks)
 
         # --- Append concise movement rules (always useful) ---
         rules = self.retrieve_relevant_chunks(
@@ -244,10 +307,10 @@ class CosmicRAGSystem:
         )
 
         if rules:
-            context += "Movement Rules :\n\n"
-            for r in rules:
-                if 'rules' in (r.get('type', '') or '').lower():
-                    context += f"{r.get('content', '')}\n\n"
+            rule_chunks = [r for r in rules if 'rules' in (r.get('type', '') or '').lower()]
+            if rule_chunks:
+                context += "Movement Rules:\n"
+                context += self._format_chunks_as_context(rule_chunks)
 
         return context
 
@@ -263,23 +326,22 @@ class CosmicRAGSystem:
             app_domain_filter=app_domain
         )
         
-        context = ""
-        for chunk in chunks:
-            context += f"{chunk.get('content', '')}\n\n"
-        
+        context = self._format_chunks_as_context(chunks)
+
         # Ajouter des règles spécifiques
         rules_chunks = self.retrieve_relevant_chunks(
-            "Entry Exit Read Write rules guidelines", 
-            top_k=4, 
-            domain_filter="data_movements"
+            "Entry Exit Read Write rules guidelines",
+            top_k=4,
+            domain_filter="data_movements",
+            app_domain_filter=app_domain
         )
-        
+
         if rules_chunks:
-            context += "Movement Rules:\n\n"
-            for chunk in rules_chunks:
-                if 'rules' in chunk.get('type', '').lower():
-                    context += f"{chunk.get('content', '')}\n\n"
-        
+            rule_chunks = [chunk for chunk in rules_chunks if 'rules' in (chunk.get('type', '') or '').lower()]
+            if rule_chunks:
+                context += "Movement Rules:\n"
+                context += self._format_chunks_as_context(rule_chunks)
+
         return context
     
     def get_validation_context(self) -> str:
@@ -292,9 +354,7 @@ class CosmicRAGSystem:
         )
         
         context = "COSMIC Validation Context:\n\n"
-        for chunk in chunks:
-            context += f"{chunk.get('content', '')}\n\n"
-        
+        context += self._format_chunks_as_context(chunks)
         return context
     
     def search_specific_topic(self, topic: str, max_results: int = 5) -> List[Dict]:

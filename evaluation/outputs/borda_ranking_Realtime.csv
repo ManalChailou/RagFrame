@@ -1,0 +1,7 @@
+Model,Mean_F1,Total_Borda,Mean_Borda
+Claude,0.9299999999999999,9.5,4.75
+GPT,0.91,8.0,4.0
+Qwen,0.89,6.5,3.25
+DeepSeek,0.875,4.0,2.0
+Grok,0.845,1.5,0.75
+MiniMax,0.825,0.5,0.25
