@@ -15,12 +15,13 @@ APIFREE_DEFAULT_BASE_URL = os.getenv("APIFREE_BASE_URL") or "https://api.apifree
 APIFREE_MODEL_PRESETS = {
     "gpt":      {"provider": "apifree", "model": "openai/gpt-4o-mini",            "base_url": APIFREE_DEFAULT_BASE_URL},
     "deepseek": {"provider": "apifree", "model": "deepseek-ai/deepseek-v3.2",    "base_url": APIFREE_DEFAULT_BASE_URL},
-    "grok":     {"provider": "apifree", "model": "xai/grok-4-fast",                    "base_url": APIFREE_DEFAULT_BASE_URL},
+    "grok":     {"provider": "apifree", "model": "xai/grok-4.1-fast",                    "base_url": APIFREE_DEFAULT_BASE_URL},
     "minimax":  {"provider": "apifree", "model": "minimax/minimax-m2.5",               "base_url": APIFREE_DEFAULT_BASE_URL},
     "qwen":     {"provider": "apifree", "model": "qwen/qwen3-coder-480b-a35b",               "base_url": APIFREE_DEFAULT_BASE_URL},
+    "kimi":     {"provider": "apifree", "model": "moonshotai/kimi-k2.5",               "base_url": APIFREE_DEFAULT_BASE_URL},
     "openai":   {"provider": "openai", "model": "gpt-4", "base_url": None},
     "claude":   {"provider": "anthropic", "model": "claude-sonnet-4-6","base_url": None},
-    "gemini":   {"provider": "gemini", "model": "gemini-2.5-pro",      "base_url": None},
+    "gemini":   {"provider": "apifree", "model": "google/gemini-2.5-pro/ai-studio-1",      "base_url": None},
 }
 
 # --------- Shared config ---------

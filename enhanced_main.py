@@ -43,7 +43,7 @@ def _remove_storage_data_groups(components: Dict, normalizer) -> None:
     normalizer: fonction str -> "User" | "Storage" | "System" | "External Application" | "Clock"
     Modifie components IN-PLACE.
     """
-    dgs = components.get("data_groups", [])
+    dgs = components.get("data_groups") or []
     cleaned = []
     for dg in dgs:
         name = (dg.get("name") or "").strip()
@@ -55,10 +55,213 @@ def _remove_storage_data_groups(components: Dict, normalizer) -> None:
         cleaned.append(dg)
     components["data_groups"] = cleaned
 
+
+def _add_prediction_dg(complete_dg: Dict, dg_to_ooi: Dict, object_of_interest: str, data_group_name: str, attributes=None) -> None:
+    """
+    Add one ObjectOfInterest -> DataGroup -> Attributes-list entry for prediction output.
+
+    Final prediction DG format:
+    {
+      "<ObjectOfInterest>": {
+        "<DataGroupName>": ["<attribute_1>", "<attribute_2>"]
+      }
+    }
+    """
+    object_of_interest = str(object_of_interest or "").strip()
+    data_group_name = str(data_group_name or "").strip()
+    if not object_of_interest or not data_group_name:
+        return
+
+    if attributes is None:
+        attributes = []
+    if not isinstance(attributes, list):
+        attributes = [attributes]
+
+    clean_attrs = []
+    for attr in attributes:
+        attr = str(attr or "").strip()
+        if attr and attr not in clean_attrs:
+            clean_attrs.append(attr)
+
+    complete_dg.setdefault(object_of_interest, {})
+    complete_dg[object_of_interest].setdefault(data_group_name, [])
+
+    # Safety if an older run/code path created {"Attributes": [...]}
+    if isinstance(complete_dg[object_of_interest][data_group_name], dict):
+        complete_dg[object_of_interest][data_group_name] = (
+            complete_dg[object_of_interest][data_group_name].get("Attributes")
+            or complete_dg[object_of_interest][data_group_name].get("attributes")
+            or []
+        )
+
+    existing_attrs = complete_dg[object_of_interest][data_group_name]
+    for attr in clean_attrs:
+        if attr not in existing_attrs:
+            existing_attrs.append(attr)
+
+    dg_to_ooi[data_group_name.lower()] = object_of_interest
+
+
+def _normalize_data_groups_for_prediction(data_groups) -> tuple[Dict, Dict]:
+    """
+    Convert extracted data groups to the final prediction format:
+    {
+      "<ObjectOfInterest>": {
+        "<DataGroupName>": ["<attribute_1>", "<attribute_2>"]
+      }
+    }
+
+    Supports all shapes currently produced by the dispatcher:
+    1) {"Student": {"Student details": ["Student ID", "Name"]}}
+    2) {"Student": {"Student details": {"Attributes": ["Student ID", "Name"]}}}
+    3) [{"name": "Student", "Student details": ["Student ID", "Name"]}]
+    4) [{"name": "Student", "Student details": {"Attributes": ["Student ID", "Name"]}}]
+    5) [{"name": "Professor", "ObjectOfInterest": "Professor", "Attributes": [...]}]
+    """
+    complete_dg: Dict = {}
+    dg_to_ooi: Dict = {}
+
+    def extract_attrs(payload):
+        """Return an attributes list from list, dict, scalar, or missing payload."""
+        if payload is None:
+            return []
+        if isinstance(payload, list):
+            return payload
+        if isinstance(payload, dict):
+            return payload.get("Attributes") or payload.get("attributes") or []
+        return [payload]
+
+    def handle_mapping(mapping: Dict) -> None:
+        for object_of_interest, groups in mapping.items():
+            object_of_interest = str(object_of_interest or "").strip()
+            if not object_of_interest:
+                continue
+
+            # Shape: {"Student": ["Student ID", "Name"]} or {"Student": {"Attributes": [...]}}
+            # Treat the key itself as the data group name only for old/flat outputs.
+            if isinstance(groups, list):
+                _add_prediction_dg(complete_dg, dg_to_ooi, object_of_interest, object_of_interest, groups)
+                continue
+
+            if isinstance(groups, dict) and ("Attributes" in groups or "attributes" in groups):
+                attrs = extract_attrs(groups)
+                _add_prediction_dg(complete_dg, dg_to_ooi, object_of_interest, object_of_interest, attrs)
+                continue
+
+            # Shape: {"Student": {"Student details": [...]}}
+            # or     {"Student": {"Student details": {"Attributes": [...]}}}
+            if isinstance(groups, dict):
+                for data_group_name, payload in groups.items():
+                    if data_group_name in {"ObjectOfInterest", "Attributes", "attributes", "DataGroupName", "name"}:
+                        continue
+                    attrs = extract_attrs(payload)
+                    _add_prediction_dg(complete_dg, dg_to_ooi, object_of_interest, data_group_name, attrs)
+
+    # Raw LLM output can be a dict.
+    if isinstance(data_groups, dict):
+        handle_mapping(data_groups)
+        return complete_dg, dg_to_ooi
+
+    # components["data_groups"] is normally a list.
+    for item in data_groups or []:
+        if not isinstance(item, dict):
+            continue
+
+        # Explicit normalized record shape.
+        explicit_ooi = item.get("ObjectOfInterest") or item.get("object_of_interest")
+        explicit_dg = (
+            item.get("DataGroupName")
+            or item.get("data_group_name")
+            or item.get("DataGroup")
+            or item.get("data_group")
+        )
+        if explicit_ooi and explicit_dg:
+            attrs = extract_attrs(item.get("Attributes") or item.get("attributes") or [])
+            _add_prediction_dg(complete_dg, dg_to_ooi, explicit_ooi, explicit_dg, attrs)
+            continue
+
+        # Current extract_components() shape:
+        # {"name": "Timer", "30-second signal": ["30-second signal"]}
+        # {"name": "Timer", "30-second signal": {"Attributes": ["30-second signal"]}}
+        if "name" in item:
+            object_of_interest = str(item.get("name") or "").strip()
+            nested_found = False
+
+            for key, payload in item.items():
+                if key in {"name", "ObjectOfInterest", "object_of_interest"}:
+                    continue
+                if key in {"Attributes", "attributes"}:
+                    continue
+
+                # IMPORTANT FIX:
+                # The dispatcher may output payload as a LIST, not only {"Attributes": [...]}
+                attrs = extract_attrs(payload)
+                _add_prediction_dg(complete_dg, dg_to_ooi, object_of_interest, key, attrs)
+                nested_found = True
+
+            # Older flat format:
+            # {"name": "Professor", "ObjectOfInterest": "Professor", "Attributes": [...]}
+            if not nested_found and (item.get("Attributes") or item.get("attributes")):
+                attrs = extract_attrs(item.get("Attributes") or item.get("attributes"))
+                old_ooi = item.get("ObjectOfInterest") or item.get("object_of_interest") or object_of_interest
+                _add_prediction_dg(complete_dg, dg_to_ooi, old_ooi, object_of_interest, attrs)
+
+            continue
+
+        # Fallback for a one-item raw mapping inside a list.
+        handle_mapping(item)
+
+    return complete_dg, dg_to_ooi
+
+
+def _collect_moved_data_groups_for_fp(related_steps: List[Dict], fp_movements: List[Dict], dg_to_ooi: Dict) -> List[Dict]:
+    """Return unique moved data groups for one FP, with their Object of Interest when available."""
+    moved = []
+    seen = set()
+
+    def add(data_group_name: str, object_of_interest: str = "") -> None:
+        data_group_name = str(data_group_name or "").strip()
+        object_of_interest = str(object_of_interest or "").strip()
+        if not data_group_name:
+            return
+        if not object_of_interest:
+            object_of_interest = dg_to_ooi.get(data_group_name.lower(), "")
+        key = (object_of_interest.lower(), data_group_name.lower())
+        if key in seen:
+            return
+        seen.add(key)
+        moved.append({
+            "ObjectOfInterest": object_of_interest,
+            "DataGroup": data_group_name
+        })
+
+    for sp in related_steps:
+        mdg = (
+            sp.get("MovedDataGroup")
+            or sp.get("moved_data_group")
+            or sp.get("DataGroup")
+            or sp.get("data_group")
+        )
+        ooi = sp.get("ObjectOfInterest") or sp.get("object_of_interest") or ""
+        add(mdg, ooi)
+
+    # Fallback after rule-engine processing.
+    if not moved:
+        for m in fp_movements:
+            add(m.get("data_group"), m.get("object_of_interest"))
+
+    return moved
+
+
 def save_prediction_jsonl(components: Dict, movements: List[Dict], path: str = "config/prediction.jsonl", overwrite: bool = False):
-    """Append predicted components in JSONL format, one line per Functional Process (FP)."""
+    """
+    Append predicted components in JSONL format, one line per Functional Process (FP).
+
+    Output:
+    - DG contains the complete extracted data groups for the whole user story.
+    - Only DG is written; moved data groups are not exported as a separate field.
+    """
     try:
-        # Assurer l'existence du dossier
         dirpath = os.path.dirname(path) or "."
         os.makedirs(dirpath, exist_ok=True)
         mode = "w" if overwrite else "a"
@@ -67,42 +270,13 @@ def save_prediction_jsonl(components: Dict, movements: List[Dict], path: str = "
         data_groups = components.get("data_groups", []) or []
         sub_processes = components.get("sub_processes", []) or []
 
+        complete_dg, _ = _normalize_data_groups_for_prediction(data_groups)
+
         with open(path, mode, encoding="utf-8") as f:
             for fp in fp_data:
                 fp_name = fp.get("name")
 
-                # Sous-processus de CE FP
                 related_steps = [sp for sp in sub_processes if sp.get("process_name") == fp_name]
-
-                # 1) DG = liste des MovedDataGroup (ordre d’apparition, sans doublons)
-                moved_dg_list = []
-                for sp in related_steps:
-                    mdg = (
-                        sp.get("MovedDataGroup")
-                        or sp.get("moved_data_group")
-                        or sp.get("DataGroup")
-                        or sp.get("data_group")
-                    )
-                    if mdg:
-                        mdg = str(mdg).strip()
-                        if mdg and mdg not in moved_dg_list:
-                            moved_dg_list.append(mdg)
-
-                # 2) fallback si pas de SP : unique data_group depuis les mouvements de CE FP
-                if not moved_dg_list:
-                    fp_movs = [m for m in movements if m.get("process") == fp_name]
-                    mdg_from_movs = []
-                    for m in fp_movs:
-                        dg = (m.get("data_group") or "").strip()
-                        if dg and dg not in mdg_from_movs:
-                            mdg_from_movs.append(dg)
-                    moved_dg_list = mdg_from_movs
-
-                # 3) fallback final : anciens data_groups extraits (noms)
-                if not moved_dg_list:
-                    moved_dg_list = [dg.get("name") for dg in data_groups if dg.get("name")]
-
-                # Comptes de mouvements de CE FP
                 fp_movements = [m for m in movements if m.get("process") == fp_name]
                 movement_counts = {
                     "Entry": sum(1 for m in fp_movements if m.get("type") == "Entry"),
@@ -114,8 +288,11 @@ def save_prediction_jsonl(components: Dict, movements: List[Dict], path: str = "
                 record = {
                     "FP": fp_name,
                     "TEn": fp.get("TriggeringEvents"),
-                    "FU": fp.get("FunctionalUser"),
-                    "DG": moved_dg_list,
+                    "FU": components.get("FunctionalUsers", []),
+
+                    # Complete extracted Data Groups from the DG extraction step.
+                    "DG": complete_dg,
+
                     "SP": [sp.get("StepName") for sp in related_steps],
                     "Action": [sp.get("ActionVerb") for sp in related_steps],
                     "Source": [sp.get("Source") for sp in related_steps],

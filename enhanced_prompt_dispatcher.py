@@ -124,7 +124,146 @@ class EnhancedPromptDispatcher:
             "Reply with a single valid JSON object only. "
             "Do not include markdown, explanations, or code fences."
         )
+    
+    def _normalize_data_groups_output(self, dg_data) -> List[Dict]:
+        """
+        Normalize Data Groups output to this internal format:
 
+        [
+            {
+                "name": "<ObjectOfInterest>",
+                "<DataGroupName>": ["attr1", "attr2"]
+            }
+        ]
+
+        Handles:
+        - {"Professor": {"Professor details": ["ID", "Name"]}}
+        - {"Professor": ["ID", "Name"]}
+        - {"Professor": {"Attributes": ["ID", "Name"]}}
+        - [{"ObjectOfInterest": "Professor", "DataGroupName": "Professor details", "Attributes": [...]}]
+        """
+
+        normalized = []
+
+        def to_attrs(value):
+            if value is None:
+                return []
+
+            if isinstance(value, list):
+                return [str(x).strip() for x in value if str(x).strip()]
+
+            if isinstance(value, dict):
+                attrs = value.get("Attributes") or value.get("attributes") or []
+                if isinstance(attrs, list):
+                    return [str(x).strip() for x in attrs if str(x).strip()]
+                if attrs:
+                    return [str(attrs).strip()]
+                return []
+
+            value = str(value).strip()
+            return [value] if value else []
+
+        def add_data_group(object_of_interest, data_group_name, attributes):
+            object_of_interest = str(object_of_interest or "").strip()
+            data_group_name = str(data_group_name or "").strip()
+
+            if not object_of_interest or not data_group_name:
+                return
+
+            attrs = to_attrs(attributes)
+
+            existing = None
+            for row in normalized:
+                if row.get("name", "").lower() == object_of_interest.lower():
+                    existing = row
+                    break
+
+            if existing is None:
+                existing = {"name": object_of_interest}
+                normalized.append(existing)
+
+            existing[data_group_name] = attrs
+
+        # Case 1: LLM returns a dictionary
+        if isinstance(dg_data, dict):
+
+            # Sometimes LLM returns {"data_groups": {...}}
+            if "data_groups" in dg_data and isinstance(dg_data["data_groups"], (dict, list)):
+                return self._normalize_data_groups_output(dg_data["data_groups"])
+
+            if "DataGroups" in dg_data and isinstance(dg_data["DataGroups"], (dict, list)):
+                return self._normalize_data_groups_output(dg_data["DataGroups"])
+
+            for object_of_interest, groups in dg_data.items():
+
+                # Example: {"Professor": ["ID", "Name"]}
+                if isinstance(groups, list):
+                    add_data_group(object_of_interest, object_of_interest, groups)
+                    continue
+
+                # Example: {"Professor": {"Attributes": ["ID", "Name"]}}
+                if isinstance(groups, dict) and ("Attributes" in groups or "attributes" in groups):
+                    data_group_name = (
+                        groups.get("DataGroupName")
+                        or groups.get("DataGroup")
+                        or object_of_interest
+                    )
+                    add_data_group(object_of_interest, data_group_name, groups)
+                    continue
+
+                # Example: {"Professor": {"Professor details": ["ID", "Name"]}}
+                if isinstance(groups, dict):
+                    for data_group_name, attributes in groups.items():
+                        if data_group_name in [
+                            "ObjectOfInterest",
+                            "object_of_interest",
+                            "name",
+                            "DataGroupName",
+                            "DataGroup",
+                        ]:
+                            continue
+
+                        add_data_group(object_of_interest, data_group_name, attributes)
+
+            return normalized
+
+        # Case 2: LLM returns a list
+        if isinstance(dg_data, list):
+            for item in dg_data:
+                if not isinstance(item, dict):
+                    continue
+
+                object_of_interest = (
+                    item.get("ObjectOfInterest")
+                    or item.get("object_of_interest")
+                    or item.get("name")
+                )
+
+                data_group_name = (
+                    item.get("DataGroupName")
+                    or item.get("data_group_name")
+                    or item.get("DataGroup")
+                    or item.get("data_group")
+                )
+
+                if object_of_interest and data_group_name:
+                    add_data_group(
+                        object_of_interest,
+                        data_group_name,
+                        item.get("Attributes") or item.get("attributes") or []
+                    )
+                    continue
+
+                if object_of_interest:
+                    for key, value in item.items():
+                        if key in ["name", "ObjectOfInterest", "object_of_interest", "Attributes", "attributes"]:
+                            continue
+
+                        add_data_group(object_of_interest, key, value)
+
+            return normalized
+
+        return normalized
 
     def _clean_model_output(self, text: str) -> str:
         if not text:
@@ -187,15 +326,7 @@ class EnhancedPromptDispatcher:
 Role: You are a software measurement expert specializing in the COSMIC method for functional size measurement.
 
 Task Description: Your task involves identifying the functional users in the provided Functional User Requirements (FUR).
-"""
-        # Ajouter le contexte RAG
-        rag_context = ""
-        if self.rag_system:
-            rag_context = self.rag_system.get_context_for_functional_users(requirements, app_domain=self._app_domain)
-            base_prompt += f"\n{rag_context}\n"
-        
-        self.last_rag_contexts["functional_users"] = rag_context
-        base_prompt += f"""
+
 Step-by-Step Instructions:
 1. Identify all entities that send data TO the system.
 2. Identify all entities that receive data FROM the system.
@@ -214,6 +345,16 @@ Identified functional users:
   "FunctionalUsers": ["Student"]
 }}
 
+"""
+        # Ajouter le contexte RAG
+        rag_context = ""
+        if self.rag_system:
+            rag_context = self.rag_system.get_context_for_functional_users(requirements, app_domain=self._app_domain)
+            base_prompt += f"\n{rag_context}\n"
+        
+        self.last_rag_contexts["functional_users"] = rag_context
+        base_prompt += f"""
+
 {self._response_instruction()}
 If you add anything else, the answer will be rejected.
 
@@ -223,21 +364,12 @@ Requirements:
         return base_prompt
 
     def create_functional_process_prompt(self, requirements: List[str], functional_users: List[str]) -> str:
+        allowed_fu = functional_users or []
         base_prompt = f"""
 Role: You are a software measurement expert specializing in the COSMIC method for functional size measurement.
 
 Task Description: Your task involves identifying functional processes from the provided Functional User Requirements (FUR).
-"""
-        # Ajouter le contexte RAG
-        rag_context = ""
-        if self.rag_system:
-            rag_context = self.rag_system.get_context_for_functional_processes(requirements, app_domain=self._app_domain)
-            base_prompt += f"\n{rag_context}\n"
 
-        self.last_rag_contexts["functional_processes"] = rag_context
-        allowed_fu = functional_users or []
-
-        base_prompt += f"""
 Step-by-Step Instructions:
 1. Identify the Triggering Events: Distinct events in the world of the functional users that the software must respond to.
 2. Identify the Functional User types: Users who respond to each triggering event.
@@ -272,6 +404,18 @@ Identified functional process:
   }}
 }}
 
+"""
+        # Ajouter le contexte RAG
+        rag_context = ""
+        if self.rag_system:
+            rag_context = self.rag_system.get_context_for_functional_processes(requirements, app_domain=self._app_domain)
+            base_prompt += f"\n{rag_context}\n"
+
+        self.last_rag_contexts["functional_processes"] = rag_context
+        allowed_fu = functional_users or []
+
+        base_prompt += f"""
+
 {self._response_instruction()}
 If you add anything else, the answer will be rejected.
 
@@ -281,61 +425,64 @@ Requirements:
         return base_prompt
 
     def create_data_groups_prompt(self, requirements: List[str], functional_processes: List[Dict]) -> str:
-        base_prompt = f"""
-Role: You are a software measurement expert specializing in the COSMIC method for functional size measurement.
+        base_prompt = """
+    Role: You are a software measurement expert specializing in the COSMIC method for functional size measurement.
 
-Task Description: Your task involves identifying Data Groups from the Functional User Requirements (FUR) and functional processes.
-"""
-        
-        # Ajouter le contexte RAG
+    Task Description: Your task involves identifying Data Groups from the Functional User Requirements (FUR) and functional processes.
+
+    Step-by-Step Instructions:
+    1. Identify the Objects of Interest: things about which the software stores or processes data.
+    2. For each Object of Interest, identify the Data Group(s) moved by the software.
+    3. For each Data Group, identify its Data Attributes.
+    4. Respect this COSMIC hierarchy: Object of Interest -> Data Group -> Data Attributes.
+    5. Consider frequency of occurrence and key attributes to distinguish between similar groups.
+    6. Exclude control commands, menu selections, display-only labels, and internal calculations.
+    7. Do NOT include storage media such as RAM, ROM, database, cache, memory, or file as Data Groups. These are Storage, not Objects of Interest.
+
+    COSMIC DATA GROUP PRINCIPLES:
+    - The Object of Interest is the entity/topic being described, such as Student, Professor, Course Offering, Timer, Heater.
+    - The Data Group is the set of data moved about that Object of Interest, such as Student details, Professor ID, Start signal, Heater On/Off command.
+    - The Data Attributes are the fields carried by that Data Group, such as Student ID, Name, Date of birth.
+    - Do NOT confuse Object of Interest with Data Group.
+
+    Expected Output Format:
+    Return a single JSON object only, using exactly this structure:
+    {
+    "<ObjectOfInterest>": {
+        "<DataGroupName>": ["<attribute_1>", "<attribute_2>"]
+    }
+    }
+
+    Example:
+    > "When managing student information, the administrator provides the student ID, name, and date of birth to the system."
+
+    Identified data groups:
+    {
+    "Student": {
+        "Student details": ["Student ID", "Name", "Date of birth"]
+    }
+    }
+
+    """
         rag_context = ""
         if self.rag_system:
-            rag_context = self.rag_system.get_context_for_data_groups(requirements, functional_processes, app_domain=self._app_domain)
+            rag_context = self.rag_system.get_context_for_data_groups(
+                requirements,
+                functional_processes,
+                app_domain=self._app_domain
+            )
             base_prompt += f"\n{rag_context}\n"
 
         self.last_rag_contexts["data_groups"] = rag_context
-        
+
         base_prompt += f"""
-Step-by-Step Instructions:
-1. Identify the Objects of Interest: Things about which the software stores or processes data.
-2. Identify the related Data Attributes: Fields that describe aspects of the same Object of Interest.
-3. Group attributes by Object of Interest into Data Groups.
-4. Consider frequency of occurrence and key attributes to distinguish between similar groups.
-5. Exclude control commands or display-only labels from data groups.
-6. Each data group must describe a cohesive set of attributes about one Object of Interest.
-7. Do NOT include storage media (RAM, ROM, database, cache) as Data Groups: these are Storage.
 
+    {self._response_instruction()}
+    If you add anything else, the answer will be rejected.
 
-COSMIC DATA GROUP PRINCIPLES:
-- Data groups represent ENTITIES in the business domain (Student, Course, Assignment, etc.)
-- Generated outputs (Reports, Invoices) are separate data groups from their source data
-- Each object of interest should have meaningful attributes that describe it completely
-
-Expected Output Format: Present the result in this Python dictionary format:
-  data_groups_format = {{
-    "Course": {{
-    "ObjectOfInterest": "Course",
-    "Attributes": ["Course ID", "Name", "Credits"]
-    }}
-  }}
-
-Example:
-> "When managing student information, the administrator provides the student ID, name, and date of birth to the system."
-
-Identified data groups:
-{{
-  "Student": {{
-    "ObjectOfInterest": "Student",
-    "Attributes": ["Student ID", "Name", "Date of birth"]
-  }}
-}}
-
-{self._response_instruction()}
-If you add anything else, the answer will be rejected.
-
-Requirements: {json.dumps(requirements, indent=2)}
-Functional Processes: {json.dumps(functional_processes, indent=2)}
-"""
+    Requirements: {json.dumps(requirements, indent=2)}
+    Functional Processes: {json.dumps(functional_processes, indent=2)}
+    """
         return base_prompt
     
     def create_sub_processes_prompt(self, requirements: List[str], functional_processes: List[Dict], data_groups: List[Dict]) -> str:
@@ -343,17 +490,7 @@ Functional Processes: {json.dumps(functional_processes, indent=2)}
 Role: You are a software measurement expert specializing in the COSMIC method for functional size measurement.
 
 Task Description: Your task involves breaking down each functional process into sub-processes and identifying data movement components.
-"""
-        
-        # Ajouter le contexte RAG spécialisé pour les mouvements de données
-        rag_context = ""
-        if self.rag_system:
-            rag_context = self.rag_system.get_context_for_sub_processes(requirements,functional_processes,data_groups, app_domain=self._app_domain)
-            base_prompt += f"\n{rag_context}\n"
-        
-        self.last_rag_contexts["sub_processes"] = rag_context
 
-        base_prompt += f"""
 IMPORTANT COSMIC RULES TO FOLLOW:
 1. NEVER create direct movements: User ↔ Storage (always go through System)
 2. NEVER create internal movements: System ↔ System (these are excluded from CFP)
@@ -449,6 +586,17 @@ CORRECT Decomposition:
     }}
   ]
 }}
+
+""" 
+        # Ajouter le contexte RAG spécialisé pour les mouvements de données
+        rag_context = ""
+        if self.rag_system:
+            rag_context = self.rag_system.get_context_for_sub_processes(requirements,functional_processes,data_groups, app_domain=self._app_domain)
+            base_prompt += f"\n{rag_context}\n"
+        
+        self.last_rag_contexts["sub_processes"] = rag_context
+
+        base_prompt += f"""
 
 {self._response_instruction()}
 If you add anything else, the answer will be rejected.
@@ -654,7 +802,7 @@ Sub-processes to rewrite:
             dg_prompt = self.create_data_groups_prompt(requirements, results["functional_processes"])
             raw_dg = self._clean_model_output(self.llm.generate(dg_prompt))
             dg_data = self.extract_json_from_text(raw_dg)
-            results["data_groups"] = [{"name": k, **v} for k, v in dg_data.items()]
+            results["data_groups"] = self._normalize_data_groups_output(dg_data)
 
             # 4. Sub-Processes
             logger.info("Extracting Sub-processes with RAG context...")

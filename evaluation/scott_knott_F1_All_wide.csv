@@ -1,0 +1,5 @@
+UseCase,Claude,DeepSeek,GPT,Grok,MiniMax,Qwen
+ALS,0.94,0.88,0.9,0.85,0.81,0.9
+C-REG,0.96,0.9,0.91,0.85,0.86,0.9
+RestoSys,0.92,0.9,0.88,0.85,0.9,0.86
+Rice-Cooker,0.92,0.87,0.92,0.84,0.84,0.88
